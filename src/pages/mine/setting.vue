@@ -142,7 +142,8 @@ export default {
             uni.removeStorageSync('user_token')
             uni.$u.toast('已退出登录')
             setTimeout(() => {
-              uni.switchTab({ url: '/pages/location/location' })
+              uni.navigateTo({ url: '/pages/user/login' })
+              // uni.switchTab({ url: '/pages/index/inded' })
             }, 400)
           }
         },

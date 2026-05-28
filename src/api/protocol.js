@@ -1,3 +1,5 @@
+import http from '@/common/request'
+
 /**
  * 协议类型（与后端 type 字段保持一致）
  */
@@ -132,22 +134,10 @@ function getMockProtocol(type) {
 export function fetchProtocol(type) {
   const protocolType = type === PROTOCOL_TYPE.SERVICE ? PROTOCOL_TYPE.SERVICE : PROTOCOL_TYPE.PRIVACY
 
-  return new Promise((resolve, reject) => {
-    // TODO: 对接后端协议接口，示例：
-    // uni.request({
-    //   url: `${BASE_URL}/api/protocol`,
-    //   data: { type: protocolType },
-    //   success: (res) => {
-    //     if (res.data?.code === 0) resolve(normalizeProtocol(res.data.data))
-    //     else reject(new Error(res.data?.msg || '加载失败'))
-    //   },
-    //   fail: reject,
-    // })
-
-    setTimeout(() => {
-      resolve(getMockProtocol(protocolType))
-    }, 200)
-  })
+  return http
+    .get('/api/protocol', { type: protocolType }, { showError: false, auth: false })
+    .then((data) => normalizeProtocol(data))
+    .catch(() => getMockProtocol(protocolType))
 }
 
 /**
