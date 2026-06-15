@@ -1,12 +1,21 @@
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import uni from '@dcloudio/vite-plugin-uni'
+
 // https://vitejs.dev/config/
-export default defineConfig({
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), '')
+  const apiTarget = (env.VITE_API_PROXY_TARGET || 'https://luanapi.zjchat.cyou').replace(/\/$/, '')
+
+  return {
   base: '/',
   server: {
-    host: '127.0.0.1',
-    port: 5174,
-    strictPort: true,
+    proxy: {
+      '/api': {
+        target: apiTarget,
+        changeOrigin: true,
+        secure: false,
+      },
+    },
   },
   plugins: [
     uni(),
@@ -18,4 +27,5 @@ export default defineConfig({
       },
     },
   },
+  }
 })

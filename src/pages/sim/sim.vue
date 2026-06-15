@@ -37,7 +37,7 @@
 
 <script>
 import { THEME_GREEN } from '@/common/theme.js'
-
+import { getSimDetail } from '@/api/device'
 const DEFAULT_ICCID = '89860840102490118041'
 
 export default {
@@ -71,16 +71,18 @@ export default {
       ]
     },
   },
-  onLoad(options) {
-    if (options.iccid) {
-      this.searchIccid = options.iccid
-      this.cardInfo.iccid = options.iccid
-    }
-    if (options.deviceId) {
-      this.deviceId = options.deviceId
-    }
+  onLoad() {
+    this.deviceId = uni.getStorageSync('currentDevice').sn
+    this.getSimDetail()
   },
   methods: {
+    getSimDetail() {
+      getSimDetail({
+        sn: this.deviceId,
+      }).then(res => {
+        console.log(res)
+      })
+    },
     onSearch() {
       const iccid = this.searchIccid.trim()
       if (!iccid) {
@@ -212,6 +214,7 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
+
   text {
     font-size: 24rpx;
     color: #3dba6e;

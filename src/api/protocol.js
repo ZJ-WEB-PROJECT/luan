@@ -127,20 +127,6 @@ function getMockProtocol(type) {
 }
 
 /**
- * 获取协议内容
- * @param {string} type - privacy | service
- * @returns {Promise<{ navTitle, title, updateTime, html, sections }>}
- */
-export function fetchProtocol(type) {
-  const protocolType = type === PROTOCOL_TYPE.SERVICE ? PROTOCOL_TYPE.SERVICE : PROTOCOL_TYPE.PRIVACY
-
-  return http
-    .get('/api/protocol', { type: protocolType }, { showError: false, auth: false })
-    .then((data) => normalizeProtocol(data))
-    .catch(() => getMockProtocol(protocolType))
-}
-
-/**
  * 规范化后端返回数据（接入接口后使用）
  */
 export function normalizeProtocol(data) {

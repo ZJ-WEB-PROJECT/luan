@@ -1,25 +1,12 @@
 <template>
   <view class="page">
-    <up-navbar
-      :title="navTitle"
-      :bg-color="THEME_GREEN"
-      title-color="#fff"
-      left-icon="arrow-left"
-      left-icon-color="#fff"
-      :auto-back="true"
-      :placeholder="true"
-      :safe-area-inset-top="true"
-    ></up-navbar>
+    <up-navbar :title="navTitle" :bg-color="THEME_GREEN" title-color="#fff" left-icon="arrow-left"
+      left-icon-color="#fff" :auto-back="true" :placeholder="true" :safe-area-inset-top="true"></up-navbar>
 
     <!-- 围栏类型 Tab -->
     <view class="type-tabs">
-      <view
-        v-for="tab in fenceTypes"
-        :key="tab.key"
-        class="type-tabs__item"
-        :class="{ 'type-tabs__item--active': fenceType === tab.key }"
-        @click="fenceType = tab.key"
-      >
+      <view v-for="tab in fenceTypes" :key="tab.key" class="type-tabs__item"
+        :class="{ 'type-tabs__item--active': fenceType === tab.key }" @click="fenceType = tab.key">
         <text>{{ tab.label }}</text>
       </view>
     </view>
@@ -28,12 +15,8 @@
     <view class="form-panel">
       <view class="form-row">
         <text class="form-row__label">名称</text>
-        <input
-          v-model="form.name"
-          class="form-row__input"
-          placeholder="请输入围栏名称(必填)"
-          placeholder-class="form-placeholder"
-        />
+        <input v-model="form.name" class="form-row__input" placeholder="请输入围栏名称(必填)"
+          placeholder-class="form-placeholder" />
       </view>
 
       <view class="form-row form-row--click" @click="showAlarmPicker = true">
@@ -45,23 +28,17 @@
       </view>
 
       <!-- 圆形：范围滑块 -->
-      <view v-if="fenceType === 'circle'" class="form-row form-row--slider">
+      <view v-if="fenceType === 'e_type_circle'" class="form-row form-row--slider">
         <text class="form-row__label">范围</text>
         <view class="form-row__slider-wrap">
-          <up-slider
-            v-model="form.radius"
-            :min="50"
-            :max="5000"
-            :step="50"
-            :active-color="THEME_GREEN"
-            inactive-color="#e8e8e8"
-          ></up-slider>
+          <up-slider v-model="form.radius" :min="50" :max="5000" :step="50" :active-color="THEME_GREEN"
+            inactive-color="#e8e8e8" style="flex: 1"></up-slider>
           <text class="form-row__radius">{{ form.radius }} 米</text>
         </view>
       </view>
 
       <!-- 多边形：撤销/清除 -->
-      <view v-if="fenceType === 'polygon'" class="form-row">
+      <view v-if="fenceType === 'e_type_polygon'" class="form-row">
         <text class="form-row__label">修改</text>
         <view class="form-row__btns">
           <view class="mini-btn" @click="onUndo">撤销</view>
@@ -69,12 +46,12 @@
         </view>
       </view>
 
-      <!-- 行政区：省/市 -->
-      <view v-if="fenceType === 'district'" class="form-row form-row--click" @click="showRegionPicker = true">
-        <text class="form-row__label">省/市</text>
+      <!-- 行政区：省市区 -->
+      <view v-if="fenceType === 'e_type_city'" class="form-row form-row--click" @click="openRegionPicker">
+        <text class="form-row__label">省市区</text>
         <view class="form-row__right">
           <text class="form-row__value" :class="{ 'form-placeholder': !form.region }">
-            {{ form.region || '请选择省/市' }}
+            {{ form.region || '请选择省市区' }}
           </text>
           <up-icon name="arrow-right" color="#ccc" size="14"></up-icon>
         </view>
@@ -83,18 +60,11 @@
 
     <!-- 地图 -->
     <view class="map-area">
-      <view class="map-bg">
-        <view v-if="fenceType === 'circle'" class="fence-circle" :style="circleStyle"></view>
-        <view v-if="fenceType === 'polygon'" class="fence-polygon-hint">
-          <text>在地图上点击绘制多边形顶点</text>
-        </view>
-        <view class="map-marker">
-          <up-icon name="car-fill" color="#3dba6e" size="32"></up-icon>
-        </view>
-      </view>
-      <view class="map-zoom">
-        <view class="map-zoom__btn" @click="zoomIn">+</view>
-        <view class="map-zoom__btn" @click="zoomOut">−</view>
+      <amap-view class="fence-map" :latitude="mapCenter.latitude" :longitude="mapCenter.longitude"
+        :scale="fenceMapScale" marker-title="围栏中心" :circles="mapCircles" :polyline="mapPolylines"
+        :polygons="mapPolygons" :show-tools="fenceType !== 'e_type_city'" @tap="onMapTap" />
+      <view v-if="fenceType === 'e_type_polygon'" class="map-hint">
+        <text>在地图上点击绘制多边形顶点</text>
       </view>
     </view>
 
@@ -105,103 +75,192 @@
     </view>
 
     <!-- 告警类型选择 -->
-    <up-action-sheet
-      :show="showAlarmPicker"
-      :actions="alarmActions"
-      title="选择告警类型"
-      @close="showAlarmPicker = false"
-      @select="onAlarmSelect"
-    ></up-action-sheet>
+    <up-action-sheet :show="showAlarmPicker" :actions="alarmActions" title="选择告警类型" @close="showAlarmPicker = false"
+      @select="onAlarmSelect"></up-action-sheet>
 
-    <!-- 省/市选择 -->
-    <up-action-sheet
-      :show="showRegionPicker"
-      :actions="regionActions"
-      title="选择省/市"
-      @close="showRegionPicker = false"
-      @select="onRegionSelect"
-    ></up-action-sheet>
+    <!-- 省市区三级联动 -->
+    <up-picker ref="regionPickerRef" :show="showRegionPicker" :columns="regionColumns" keyName="label" title="选择省市区"
+      confirm-color="#3dba6e" @change="onRegionColumnChange" @confirm="onRegionConfirm"
+      @cancel="showRegionPicker = false" @close="showRegionPicker = false"></up-picker>
   </view>
 </template>
 
 <script>
 import { THEME_GREEN } from '@/common/theme.js'
+import AmapView from '@/components/amap-view/amap-view.vue'
+import { DEFAULT_MAP_CENTER, DEFAULT_MAP_SCALE } from '@/common/amap-config'
+import {
+  buildFenceCreateParams,
+  addFence,
+  getFenceList,
+  normalizeFenceList,
+} from '@/api/device'
+import {
+  buildRegionColumns,
+  findRegionIndexes,
+  formatRegionText,
+  getAreaListByIndexes,
+  getCityListByProvinceIndex,
+} from '@/common/region'
+
+const STORAGE_KEY = 'currentDevice'
 
 const ALARM_OPTIONS = [
-  { name: '入围栏', value: 'in' },
-  { name: '出围栏', value: 'out' },
-  { name: '进入报警', value: 'enter' },
-  { name: '离开报警', value: 'leave' },
+  { name: '入围栏', value: 'e_fence_in' },
+  { name: '出围栏', value: 'e_fence_out' },
+  { name: '出入围栏', value: 'e_fence_in_out' },
 ]
 
-const TYPE_LABELS = {
-  circle: '圆形围栏',
-  polygon: '多边形围栏',
-  district: '行政区围栏',
+/** 根据围栏半径(米)推算地图 scale(3–20)，半径越大视野越远 */
+function scaleForFenceRadius(radiusMeters) {
+  const minR = 50
+  const maxR = 5000
+  const maxScale = 17
+  const minScale = 10
+  const r = Math.max(minR, Math.min(maxR, Number(radiusMeters) || 300))
+  if (r <= minR) return maxScale
+  if (r >= maxR) return minScale
+  const t = (Math.log(r) - Math.log(minR)) / (Math.log(maxR) - Math.log(minR))
+  return Math.max(3, Math.min(20, Math.round(maxScale - t * (maxScale - minScale))))
 }
 
 export default {
+  components: { AmapView },
   data() {
     return {
       THEME_GREEN,
       deviceId: '',
       editId: '',
-      fenceType: 'circle',
+      fenceType: 'e_type_circle',
       showAlarmPicker: false,
       showRegionPicker: false,
-      mapScale: 1,
+      regionColumns: [[], [], []],
+      regionIndexes: [0, 0, 0],
+      mapCenter: {
+        latitude: DEFAULT_MAP_CENTER.latitude,
+        longitude: DEFAULT_MAP_CENTER.longitude,
+      },
+      polygonPoints: [],
       fenceTypes: [
-        { key: 'circle', label: '圆形围栏' },
-        { key: 'polygon', label: '多边形围栏' },
-        { key: 'district', label: '行政区围栏' },
+        { key: 'e_type_circle', label: '圆形围栏' },
+        { key: 'e_type_polygon', label: '多边形围栏' },
+        { key: 'e_type_city', label: '行政区围栏' },
       ],
       form: {
         name: '',
-        alarm: 'in',
+        alarm: 'e_fence_in',
         alarmLabel: '入围栏',
         radius: 300,
         region: '',
       },
       alarmActions: ALARM_OPTIONS.map((o) => ({ name: o.name })),
-      regionActions: [
-        { name: '江西省/九江市' },
-        { name: '江西省/南昌市' },
-        { name: '广东省/深圳市' },
-        { name: '浙江省/杭州市' },
-      ],
     }
   },
   computed: {
     navTitle() {
       return this.deviceId || '创建围栏'
     },
-    circleStyle() {
-      const size = Math.min(280, 80 + this.form.radius / 8) * this.mapScale
-      return {
-        width: `${size}rpx`,
-        height: `${size}rpx`,
+    mapCircles() {
+      if (this.fenceType !== 'e_type_circle') return []
+      return [{
+        latitude: this.mapCenter.latitude,
+        longitude: this.mapCenter.longitude,
+        radius: this.form.radius,
+        color: '#e74c3c99',
+        fillColor: '#e74c3c33',
+        strokeWidth: 2,
+      }]
+    },
+    mapPolylines() {
+      if (this.fenceType !== 'e_type_polygon' || this.polygonPoints.length < 2) return []
+      return [{
+        points: this.polygonPoints,
+        color: '#e74c3c',
+        width: 3,
+      }]
+    },
+    mapPolygons() {
+      if (this.fenceType !== 'e_type_polygon' || this.polygonPoints.length < 3) return []
+      return [{
+        points: this.polygonPoints,
+        strokeColor: '#e74c3c99',
+        fillColor: '#e74c3c33',
+        strokeWidth: 2,
+      }]
+    },
+    fenceMapScale() {
+      if (this.fenceType === 'e_type_circle') {
+        return scaleForFenceRadius(this.form.radius)
+      }
+      return DEFAULT_MAP_SCALE
+    },
+  },
+  watch: {
+    fenceType(val, oldVal) {
+      if (oldVal === 'e_type_polygon' && val !== 'e_type_polygon') {
+        this.polygonPoints = []
       }
     },
   },
   onLoad(options) {
-    if (options.deviceId) this.deviceId = options.deviceId
+    if (options.deviceId) {
+      this.deviceId = options.deviceId
+    } else {
+      const dev = uni.getStorageSync(STORAGE_KEY)
+      this.deviceId = dev?.sn || dev?.imei || ''
+    }
+    this.loadMapCenter()
+    this.initRegionColumns()
     if (options.id) {
       this.editId = options.id
       this.loadFence(options.id)
     }
   },
   methods: {
-    loadFence(id) {
-      const list = uni.getStorageSync(`fence_list_${this.deviceId}`) || []
-      const item = list.find((f) => f.id === id)
-      if (item) {
-        this.fenceType = item.type || 'circle'
-        this.form.name = item.name
-        this.form.alarm = item.alarm
-        this.form.alarmLabel = item.alarmLabel
-        this.form.radius = item.radius || 300
-        this.form.region = item.region || ''
+    loadMapCenter() {
+      const dev = uni.getStorageSync(STORAGE_KEY)
+      const lat = Number(dev?.latitude ?? dev?.lat)
+      const lng = Number(dev?.longitude ?? dev?.lng)
+      if (lat && lng) {
+        this.mapCenter = { latitude: lat, longitude: lng }
       }
+    },
+    async loadFence(id) {
+      try {
+        const sn = this.deviceId || uni.getStorageSync(STORAGE_KEY)?.sn
+        if (!sn) return
+        const res = await getFenceList({ sn, limitSize: 50 })
+        const item = normalizeFenceList(res).find((f) => String(f.id) === String(id))
+        if (!item) return
+        this.applyFenceItem(item)
+      } catch (err) {
+        uni.$u.toast(err?.message || '加载围栏失败')
+      }
+    },
+    applyFenceItem(item) {
+      this.fenceType = item.type || 'e_type_circle'
+      this.form.name = item.name
+      this.form.alarm = item.alarm || 'e_fence_in'
+      this.form.alarmLabel = item.alarmLabel || '入围栏'
+      this.form.radius = item.radius || 300
+      this.syncRegionFromText(item.region || '')
+      if (item.center?.latitude && item.center?.longitude) {
+        this.mapCenter = {
+          latitude: item.center.latitude,
+          longitude: item.center.longitude,
+        }
+      }
+      if (Array.isArray(item.polygonPoints)) {
+        this.polygonPoints = item.polygonPoints.map((p) => ({
+          latitude: p.latitude,
+          longitude: p.longitude,
+        }))
+      }
+    },
+    onMapTap({ latitude, longitude }) {
+      if (this.fenceType !== 'e_type_polygon') return
+      if (!latitude || !longitude) return
+      this.polygonPoints.push({ latitude, longitude })
     },
     onAlarmSelect(e) {
       const opt = ALARM_OPTIONS.find((o) => o.name === e.name)
@@ -211,58 +270,120 @@ export default {
       }
       this.showAlarmPicker = false
     },
-    onRegionSelect(e) {
-      this.form.region = e.name
+    syncRegionFromText(regionText) {
+      const parts = String(regionText || '').split('/').map((s) => s.trim()).filter(Boolean)
+      if (!parts.length) {
+        this.form.region = ''
+        this.regionIndexes = [0, 0, 0]
+        this.regionColumns = buildRegionColumns(0, 0)
+        return
+      }
+      this.form.region = parts.join('/')
+      const { provinceIndex, cityIndex, areaIndex } = findRegionIndexes(parts[0], parts[1], parts[2])
+      this.regionIndexes = [provinceIndex, cityIndex, areaIndex]
+      this.regionColumns = buildRegionColumns(provinceIndex, cityIndex)
+    },
+    initRegionColumns() {
+      if (this.form.region) {
+        this.syncRegionFromText(this.form.region)
+        return
+      }
+      const { provinceIndex, cityIndex } = findRegionIndexes('北京市', '', '')
+      this.regionIndexes = [provinceIndex, cityIndex, 0]
+      this.regionColumns = buildRegionColumns(provinceIndex, cityIndex)
+    },
+    openRegionPicker() {
+      if (this.form.region) {
+        this.syncRegionFromText(this.form.region)
+      } else {
+        this.initRegionColumns()
+      }
+      this.showRegionPicker = true
+      this.$nextTick(() => {
+        this.$refs.regionPickerRef?.setIndexs?.(this.regionIndexes, true)
+      })
+    },
+    onRegionColumnChange(e) {
+      const columnIndex = e?.columnIndex
+      const indexs = e?.indexs || e?.indexes || []
+      const picker = this.$refs.regionPickerRef
+      if (!picker || columnIndex == null) return
+
+      if (columnIndex === 0) {
+        const provinceIndex = indexs[0] ?? 0
+        const cityList = getCityListByProvinceIndex(provinceIndex)
+        picker.setColumnValues(1, cityList)
+        picker.setColumnValues(2, getAreaListByIndexes(provinceIndex, 0))
+      } else if (columnIndex === 1) {
+        const provinceIndex = indexs[0] ?? 0
+        const cityIndex = indexs[1] ?? 0
+        picker.setColumnValues(2, getAreaListByIndexes(provinceIndex, cityIndex))
+      }
+    },
+    onRegionConfirm(e) {
+      const value = e?.value || []
+      const indexs = e?.indexs || e?.indexes || [0, 0, 0]
+      this.regionIndexes = indexs
+      this.form.region = formatRegionText({
+        province: value[0]?.label || '',
+        city: value[1]?.label || '',
+        district: value[2]?.label || '',
+      })
       this.showRegionPicker = false
     },
-    zoomIn() {
-      if (this.mapScale < 1.4) this.mapScale += 0.1
-    },
-    zoomOut() {
-      if (this.mapScale > 0.6) this.mapScale -= 0.1
-    },
     onUndo() {
-      uni.$u.toast('撤销')
+      if (!this.polygonPoints.length) {
+        uni.$u.toast('暂无可撤销的顶点')
+        return
+      }
+      this.polygonPoints.pop()
     },
     onClearPolygon() {
+      this.polygonPoints = []
       uni.$u.toast('已清除')
     },
-    onSave() {
+    async onSave() {
       if (!this.form.name.trim()) {
         uni.$u.toast('请输入围栏名称')
         return
       }
-      if (this.fenceType === 'district' && !this.form.region) {
-        uni.$u.toast('请选择省/市')
+      if (this.fenceType === 'e_type_city' && !this.form.region) {
+        uni.$u.toast('请选择省市区')
+        return
+      }
+      if (this.fenceType === 'e_type_polygon' && this.polygonPoints.length < 3) {
+        uni.$u.toast('请在地图上绘制至少3个顶点')
         return
       }
 
-      const item = {
-        id: this.editId || `fence_${Date.now()}`,
-        name: this.form.name.trim(),
-        type: this.fenceType,
-        typeLabel: TYPE_LABELS[this.fenceType],
-        alarm: this.form.alarm,
-        alarmLabel: this.form.alarmLabel,
-        radius: this.form.radius,
-        region: this.form.region,
+      const sn = this.deviceId || uni.getStorageSync(STORAGE_KEY)?.sn
+      if (!sn) {
+        uni.$u.toast('未找到设备号')
+        return
       }
-
-      const cacheKey = `fence_list_${this.deviceId}`
-      let list = uni.getStorageSync(cacheKey) || []
-      if (!Array.isArray(list)) list = []
 
       if (this.editId) {
-        const idx = list.findIndex((f) => f.id === this.editId)
-        if (idx >= 0) list[idx] = item
-        else list.unshift(item)
-      } else {
-        list.unshift(item)
+        uni.$u.toast('编辑围栏接口待对接')
+        return
       }
 
-      uni.setStorageSync(cacheKey, list)
-      uni.$u.toast('保存成功')
-      setTimeout(() => uni.navigateBack(), 500)
+      try {
+        const payload = buildFenceCreateParams({
+          name: this.form.name,
+          type: this.fenceType,
+          mapCenter: this.mapCenter,
+          radius: this.form.radius,
+          polygonPoints: this.polygonPoints,
+          region: this.form.region,
+          alarm: this.form.alarm,
+        })
+        payload.sn = sn
+        await addFence(payload)
+        uni.$u.toast('保存成功')
+        setTimeout(() => uni.navigateBack(), 500)
+      } catch (err) {
+        uni.$u.toast(err?.message || '保存失败')
+      }
     },
   },
 }
@@ -327,8 +448,6 @@ export default {
 }
 
 .form-row--slider {
-  flex-direction: column;
-  align-items: stretch;
   gap: 16rpx;
 }
 
@@ -369,7 +488,6 @@ export default {
   align-items: center;
   gap: 16rpx;
   width: 100%;
-  padding-left: 120rpx;
   box-sizing: border-box;
 }
 
@@ -403,32 +521,19 @@ export default {
   overflow: hidden;
 }
 
-.map-bg {
-  width: 100%;
-  height: 100%;
-  min-height: 420rpx;
-  background: linear-gradient(180deg, #e8eef3 0%, #dfeef5 100%);
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.fence-circle {
+.fence-map {
   position: absolute;
-  border-radius: 50%;
-  background: rgba(231, 76, 60, 0.25);
-  border: 4rpx solid rgba(231, 76, 60, 0.6);
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
+  inset: 0;
+  z-index: 0;
 }
 
-.fence-polygon-hint {
+.map-hint {
   position: absolute;
   bottom: 24rpx;
   left: 50%;
   transform: translateX(-50%);
+  z-index: 1;
+  pointer-events: none;
   background: rgba(0, 0, 0, 0.5);
   padding: 12rpx 24rpx;
   border-radius: 8rpx;
@@ -436,39 +541,6 @@ export default {
   text {
     font-size: 24rpx;
     color: #fff;
-  }
-}
-
-.map-marker {
-  position: relative;
-  z-index: 2;
-  filter: drop-shadow(0 4rpx 8rpx rgba(0, 0, 0, 0.2));
-}
-
-.map-zoom {
-  position: absolute;
-  right: 24rpx;
-  top: 24rpx;
-  display: flex;
-  flex-direction: column;
-  background: #fff;
-  border-radius: 8rpx;
-  overflow: hidden;
-  box-shadow: 0 4rpx 12rpx rgba(0, 0, 0, 0.1);
-}
-
-.map-zoom__btn {
-  width: 64rpx;
-  height: 64rpx;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 36rpx;
-  color: #333;
-  border-bottom: 1rpx solid #eee;
-
-  &:last-child {
-    border-bottom: none;
   }
 }
 

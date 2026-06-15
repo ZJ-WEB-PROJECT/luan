@@ -21,30 +21,30 @@
       <text class="date-bar__nav" @click="changeDay(1)">后一天</text>
     </view>
 
-    <scroll-view class="content" scroll-y>
+    <scroll-view class="content" scroll-y @scrolltolower="onReportScrollToLower">
       <!-- 行程报表 -->
       <template v-if="activeTab === 'trip' && hasReportData">
-        <view v-for="(item, index) in tripList" :key="index" class="report-card" @click="onTripDetail(item)">
+        <view v-for="(item, index) in pageList" :key="index" class="report-card" @click="onTripDetail(item)">
           <view class="report-card__body">
             <view class="report-row">
               <text class="report-row__label">开始时间</text>
-              <text class="report-row__value">{{ item.startTime }}</text>
+              <text class="report-row__value">{{ formatReportStart(item) }}</text>
             </view>
             <view class="report-row">
               <text class="report-row__label">结束时间</text>
-              <text class="report-row__value">{{ item.endTime }}</text>
+              <text class="report-row__value">{{ formatReportEnd(item) }}</text>
             </view>
             <view class="report-row">
               <text class="report-row__label">时长</text>
-              <text class="report-row__value">{{ item.duration }}</text>
+              <text class="report-row__value">{{ formatTripDuration(item) }}</text>
             </view>
             <view class="report-row">
               <text class="report-row__label">起点</text>
-              <text class="report-row__coord">{{ item.startPoint }}</text>
+              <text class="report-row__coord">{{ formatTripStartPoint(item) }}</text>
             </view>
             <view class="report-row">
               <text class="report-row__label">终点</text>
-              <text class="report-row__coord">{{ item.endPoint }}</text>
+              <text class="report-row__coord">{{ formatTripEndPoint(item) }}</text>
             </view>
           </view>
           <up-icon name="arrow-right" color="#ddd" size="16"></up-icon>
@@ -53,28 +53,23 @@
 
       <!-- 停留报表 -->
       <template v-else-if="hasReportData">
-        <view
-          v-for="(item, index) in stayList"
-          :key="index"
-          class="report-card"
-          @click="onStayDetail(item)"
-        >
+        <view v-for="(item, index) in pageList" :key="index" class="report-card" @click="onStayDetail(item)">
           <view class="report-card__body">
             <view class="report-row">
               <text class="report-row__label">停留时间</text>
-              <text class="report-row__value">{{ item.stayTime }}</text>
+              <text class="report-row__value">{{ getStayTime(item) }}</text>
             </view>
             <view class="report-row">
               <text class="report-row__label">开始时间</text>
-              <text class="report-row__value">{{ item.startTime }}</text>
+              <text class="report-row__value">{{ formatReportStart(item) }}</text>
             </view>
             <view class="report-row">
               <text class="report-row__label">结束时间</text>
-              <text class="report-row__value">{{ item.endTime }}</text>
+              <text class="report-row__value">{{ formatReportEnd(item) }}</text>
             </view>
             <view class="report-row">
               <text class="report-row__label">地址</text>
-              <text class="report-row__coord">{{ item.address }}</text>
+              <text class="report-row__coord">{{ formatStayAddress(item) }}</text>
             </view>
           </view>
           <up-icon name="arrow-right" color="#ddd" size="16"></up-icon>
@@ -85,103 +80,57 @@
         <up-empty mode="data" text="暂无报表数据"></up-empty>
       </view>
 
-      <view v-else class="list-footer">
+      <view v-else-if="pageLoading" class="list-footer">
+        <text>加载中...</text>
+      </view>
+      <view v-else-if="pageFinished" class="list-footer">
         <text>没有更多了</text>
+      </view>
+      <view v-else class="list-footer">
+        <text>上拉加载更多</text>
       </view>
     </scroll-view>
 
     <!-- 日期选择弹窗 -->
-    <up-calendar
-      :show="showDatePicker"
-      title="选择日期"
-      mode="single"
-      :default-date="currentDate"
-      :min-date="calendarMinDate"
-      :max-date="calendarMaxDate"
-      :show-lunar="true"
-      :show-mark="true"
-      :month-switch="true"
-      :month-num="12"
-      color="#3dba6e"
-      confirm-text="确认"
-      :week-text="weekText"
-      month-format="YYYY年 M月"
-      round="16"
-      :close-on-click-overlay="true"
-      :formatter="dateFormatter"
-      @confirm="onDateConfirm"
-      @close="showDatePicker = false"
-    ></up-calendar>
+    <up-calendar :show="showDatePicker" title="选择日期" mode="single" :default-date="currentDate"
+      :min-date="calendarMinDate" :max-date="calendarMaxDate" :show-lunar="true" :show-mark="true" :month-switch="true"
+      :month-num="12" color="#3dba6e" confirm-text="确认" :week-text="weekText" month-format="YYYY年 M月" round="16"
+      :close-on-click-overlay="true" :formatter="dateFormatter" @confirm="onDateConfirm"
+      @close="showDatePicker = false"></up-calendar>
   </view>
 </template>
 
 <script>
 import dayjs from 'dayjs'
+import {
+  getDeviceStay,
+  getDeviceTrip,
+  formatReportTime,
+  formatStayDuration,
+} from '@/api/device'
 import { THEME_GREEN } from '@/common/theme.js'
-
-/** 演示用「今天」，与项目 mock 日期一致 */
-const DEMO_TODAY = dayjs('2026-05-22')
+import pageLoadMixin, { PAGE_MODE } from '@/mixins/page-load'
 
 export default {
+  mixins: [pageLoadMixin],
   data() {
+    const today = dayjs()
     return {
       THEME_GREEN,
       deviceId: '',
       activeTab: 'stay',
       showDatePicker: false,
-      currentDay: dayjs('2026-05-22'),
+      currentDay: today,
       weekText: ['一', '二', '三', '四', '五', '六', '日'],
-      calendarMinDate: '2026-01-01',
-      calendarMaxDate: DEMO_TODAY.format('YYYY-MM-DD'),
+      calendarMinDate: today.startOf('year').format('YYYY-MM-DD'),
+      calendarMaxDate: today.format('YYYY-MM-DD'),
       /** 有报表数据的日期（显示红点） */
       datesWithData: [],
       tabs: [
         { key: 'stay', label: '停留报表' },
         { key: 'trip', label: '行程报表' },
       ],
-      tripList: [
-        {
-          startTime: '2026/05/19 22:39:49',
-          endTime: '2026/05/19 23:11:48',
-          duration: '31分59秒',
-          startPoint: '116.108008,29.640436',
-          endPoint: '115.976921,29.680545',
-        },
-        {
-          startTime: '2026/05/19 18:12:03',
-          endTime: '2026/05/19 18:45:20',
-          duration: '33分17秒',
-          startPoint: '116.052341,29.612008',
-          endPoint: '116.108008,29.640436',
-        },
-        {
-          startTime: '2026/05/19 09:05:11',
-          endTime: '2026/05/19 09:52:36',
-          duration: '47分25秒',
-          startPoint: '115.976921,29.680545',
-          endPoint: '116.052341,29.612008',
-        },
-      ],
-      stayList: [
-        {
-          stayTime: '481.00分钟',
-          startTime: '2026/05/19 23:11:48',
-          endTime: '2026/05/20 07:13:46',
-          address: '115.976921,29.680545',
-        },
-        {
-          stayTime: '195.50分钟',
-          startTime: '2026/05/19 14:20:00',
-          endTime: '2026/05/19 17:35:22',
-          address: '116.108008,29.640436',
-        },
-        {
-          stayTime: '52.42分钟',
-          startTime: '2026/05/19 08:00:15',
-          endTime: '2026/05/19 08:52:40',
-          address: '115.976921,29.680545',
-        },
-      ],
+      pageLimitSize: 20,
     }
   },
   computed: {
@@ -189,27 +138,60 @@ export default {
       return this.currentDay.format('YYYY-MM-DD')
     },
     hasReportData() {
-      if (this.activeTab === 'trip') return this.tripList.length > 0
-      return this.stayList.length > 0
+      return this.pageList.length > 0
+    },
+  },
+  watch: {
+    activeTab() {
+      this.loadReport()
     },
   },
   created() {
     this.initDatesWithData()
   },
   onLoad(options) {
-    if (options.deviceId) this.deviceId = options.deviceId
+    this.deviceId = uni.getStorageSync('currentDevice').sn
     if (options.tab === 'stay') this.activeTab = 'stay'
     else if (options.tab === 'trip') this.activeTab = 'trip'
     this.loadReport()
   },
   methods: {
+    getStayTime(item) {
+      if (item.items) {
+        return formatStayDuration(item.items[0].cos_time)
+      } else {
+        return 0
+      }
+    },
+    formatReportStart(item) {
+      return formatReportTime(item.start_time || item.items[0]?.start_time)
+    },
+    formatReportEnd(item) {
+      return formatReportTime(item.stop_time || (item.items[0]?.start_time + item.items[0].cos_time))
+    },
+    formatTripDuration(item) {
+      return formatStayDuration(item.cos_time)
+    },
+    formatTripStartPoint(item) {
+      return item?.start_wgs ?? item?.startWgs ?? item?.start_point ?? ''
+    },
+    formatTripEndPoint(item) {
+      return item?.stop_wgs ?? item?.endWgs ?? item?.end_point ?? ''
+    },
+    formatStayAddress(item) {
+      const wgs = item?.wgs || ''
+      const lon = item?.lon ?? item?.longitude
+      const lat = item?.lat ?? item?.latitude
+      const coord = wgs || (lon != null && lat != null ? `${lon},${lat}` : '')
+      return item?.address || coord
+    },
     initDatesWithData() {
       const list = []
-      const month = dayjs('2026-05-01')
+      const today = dayjs()
+      const month = today.startOf('month')
       const daysInMonth = month.daysInMonth()
-      const noDotDays = [5, 16, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31]
       for (let d = 1; d <= daysInMonth; d++) {
-        if (!noDotDays.includes(d) && d <= DEMO_TODAY.date()) {
+        if (d <= today.date()) {
           list.push(month.date(d).format('YYYY-MM-DD'))
         }
       }
@@ -217,7 +199,7 @@ export default {
     },
     changeDay(delta) {
       const next = this.currentDay.add(delta, 'day')
-      if (next.isAfter(DEMO_TODAY, 'day')) {
+      if (next.isAfter(dayjs(), 'day')) {
         uni.$u.toast('不能选择未来日期')
         return
       }
@@ -232,7 +214,7 @@ export default {
       if (this.datesWithData.includes(dateStr)) {
         day.dot = true
       }
-      if (dayjs(dateStr).isSame(DEMO_TODAY, 'day')) {
+      if (dayjs(dateStr).isSame(dayjs(), 'day')) {
         day.bottomInfo = '今天'
       }
       return day
@@ -249,72 +231,28 @@ export default {
       }
       this.showDatePicker = false
     },
-    loadReport() {
-      // TODO: 对接报表接口，按 currentDate / activeTab / deviceId 查询
-      // 演示：仅 2026-05-19、05-22 有列表数据，其余日期显示空状态
-      const d = this.currentDate
-      const hasData = d === '2026-05-19' || d === '2026-05-22'
-      if (!hasData) {
-        this.tripList = []
-        this.stayList = []
-      } else if (d === '2026-05-22' && this.activeTab === 'stay') {
-        this.stayList = [
-          {
-            stayTime: '481.00分钟',
-            startTime: '2026/05/19 23:11:48',
-            endTime: '2026/05/20 07:13:46',
-            address: '115.976921,29.680545',
-          },
-        ]
-      } else if (d === '2026-05-19') {
-        // 恢复默认 mock
-        this.resetMockData()
+    getPageLoadOptions() {
+      const isTrip = this.activeTab === 'trip'
+      return {
+        requestFn: isTrip ? getDeviceTrip : getDeviceStay,
+        sn: this.deviceId,
+        date: this.currentDate,
+        limitSize: this.pageLimitSize,
+        mode: isTrip ? PAGE_MODE.TRIP : PAGE_MODE.DEFAULT,
+        errorMsg: '报表查询失败',
       }
     },
-    resetMockData() {
-      this.tripList = [
-        {
-          startTime: '2026/05/19 22:39:49',
-          endTime: '2026/05/19 23:11:48',
-          duration: '31分59秒',
-          startPoint: '116.108008,29.640436',
-          endPoint: '115.976921,29.680545',
-        },
-        {
-          startTime: '2026/05/19 18:12:03',
-          endTime: '2026/05/19 18:45:20',
-          duration: '33分17秒',
-          startPoint: '116.052341,29.612008',
-          endPoint: '116.108008,29.640436',
-        },
-        {
-          startTime: '2026/05/19 09:05:11',
-          endTime: '2026/05/19 09:52:36',
-          duration: '47分25秒',
-          startPoint: '115.976921,29.680545',
-          endPoint: '116.052341,29.612008',
-        },
-      ]
-      this.stayList = [
-        {
-          stayTime: '481.00分钟',
-          startTime: '2026/05/19 23:11:48',
-          endTime: '2026/05/20 07:13:46',
-          address: '115.976921,29.680545',
-        },
-        {
-          stayTime: '195.50分钟',
-          startTime: '2026/05/19 14:20:00',
-          endTime: '2026/05/19 17:35:22',
-          address: '116.108008,29.640436',
-        },
-        {
-          stayTime: '52.42分钟',
-          startTime: '2026/05/19 08:00:15',
-          endTime: '2026/05/19 08:52:40',
-          address: '115.976921,29.680545',
-        },
-      ]
+    async loadReport() {
+      if (!this.deviceId) return
+      try {
+        await this.fetchPageFirst(this.getPageLoadOptions())
+      } catch {
+        // toast 已在 mixin 中处理
+      }
+    },
+    onReportScrollToLower() {
+      if (this.pageFinished || this.pageLoading) return
+      this.loadPageMore(this.getPageLoadOptions())
     },
     onTripDetail(item) {
       uni.$u.toast('行程详情')

@@ -15,7 +15,7 @@
     <view class="body">
       <view class="form">
         <view class="form-line">
-          <input v-model="phone" class="form-line__input" type="text" maxlength="11" placeholder="手机号"
+          <input v-model="mobile" class="form-line__input" type="text" maxlength="11" placeholder="手机号"
             placeholder-class="form-line__placeholder" />
         </view>
         <view class="form-line">
@@ -62,7 +62,7 @@ import CryptoJS from 'crypto-js'
 export default {
   data() {
     return {
-      phone: '',
+      mobile: '',
       password: '',
       agreed: true,
     }
@@ -85,7 +85,7 @@ export default {
       uni.navigateTo({ url: '/pages/user/forgot-password' })
     },
     async onLogin() {
-      // if (!/^1\d{10}$/.test(this.phone)) {
+      // if (!/^1\d{10}$/.test(this.mobile)) {
       //   uni.$u.toast('请输入正确手机号')
       //   return
       // }
@@ -99,16 +99,17 @@ export default {
       }
       try {
         const data = await loginByPassword({
-          account: this.phone,
-          pwd_md5: CryptoJS.MD5(this.password.trim()).toString(),
+          mobile: this.mobile,
+          password: this.password,
         })
-        const token = this.extractToken(data)
+        const token = data.token
         if (token) {
           setToken(token)
         }
-        uni.setStorageSync('userPhone', this.phone)
+        uni.setStorageSync('userPhone', this.mobile)
+        uni.setStorageSync('userInfo', data.member)
         uni.$u.toast('登录成功')
-        uni.switchTab({ url: '/pages/location/location' })
+        uni.switchTab({ url: '/pages/index/index' })
       } catch (e) {
         // 请求层已统一 toast，这里保留兜底日志便于排查
         console.error('[login] failed:', e)
@@ -151,12 +152,14 @@ export default {
       })
     },
     async onWechatLogin() {
-      // #ifndef MP-WEIXIN && APP-PLUS
+      // 仅微信小程序 / App 支持；H5 等其它平台提示不支持
+      // #ifndef MP-WEIXIN
+      // #ifndef APP-PLUS
       uni.$u.toast('当前平台不支持微信授权登录')
       return
       // #endif
+      // #endif
 
-      // #ifdef MP-WEIXIN || APP-PLUS
       try {
         if (!this.agreed) {
           uni.$u.toast('请先阅读并同意相关协议')
@@ -173,6 +176,11 @@ export default {
 
         // 1) 获取 code（后端换取 openid/sessionKey 用）
         const loginRes = await this.callUniLogin()
+        // #ifdef APP-PLUS
+        const info = await this.callGetUserInfoByWechat()
+        // uni.setStorageSync('wechatAuthInfo', loginRes.authResult)
+        // uni.navigateTo({ url: '/pages/user/bind' })
+        // #endif
         const code = loginRes?.code || ''
         if (!code) {
           uni.$u.toast('获取微信登录凭证失败')
@@ -182,7 +190,7 @@ export default {
         // 2) 获取用户授权信息（昵称、头像等）
         let profileRes = {}
         // #ifdef MP-WEIXIN
-        profileRes = await this.callGetUserProfile()
+        // profileRes = await this.callGetUserProfile()
         // #endif
         // #ifdef APP-PLUS
         profileRes = await this.callGetUserInfoByWechat()
@@ -195,36 +203,41 @@ export default {
           signature: profileRes?.signature || '',
           encryptedData: profileRes?.encryptedData || '',
           iv: profileRes?.iv || '',
+          provider: 'wechat_mini'
         }
 
-        // 先把授权信息存本地，方便调试与后续落库
         uni.setStorageSync('wechatAuthInfo', wechatAuthInfo)
-        console.log('[wechat auth info]', wechatAuthInfo)
 
-        // 3) 尝试调用后端微信登录（若后端未就绪，不阻断“拿到授权信息”目标）
-        try {
-          const data = await loginByWechat(wechatAuthInfo)
-          const token = this.extractToken(data)
-          if (token) {
-            setToken(token)
-            uni.$u.toast('微信登录成功')
-            uni.switchTab({ url: '/pages/location/location' })
-            return
-          }
-        } catch (e) {
-          console.warn('[wechat login api] not ready:', e)
+        const data = await loginByWechat(wechatAuthInfo)
+        uni.setStorageSync('wechatLoginResult', data || {})
+
+        const token = this.extractToken(data)
+        if (token) {
+          setToken(token)
         }
 
-        uni.$u.toast('已获取微信授权信息，请继续对接后端登录')
+        const mobile = data?.member?.mobile || data?.mobile || ''
+        if (mobile) {
+          uni.setStorageSync('userPhone', mobile)
+          if (data?.member) {
+            uni.setStorageSync('userInfo', data.member)
+          }
+          uni.removeStorageSync('wechatAuthInfo')
+          uni.removeStorageSync('wechatLoginResult')
+          uni.$u.toast('登录成功')
+          uni.switchTab({ url: '/pages/index/index' })
+          return
+        }
+
+        uni.$u.toast('请绑定手机号')
+        uni.navigateTo({ url: '/pages/user/bind' })
       } catch (e) {
         if (String(e?.errMsg || '').includes('deny')) {
           uni.$u.toast('你已取消微信授权')
         } else {
           uni.$u.toast('微信授权失败，请重试')
         }
-        console.error('[wechat login] failed:', e)
       }
-      // #endif
     },
   },
 }

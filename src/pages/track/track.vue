@@ -1,15 +1,7 @@
 <template>
   <view class="page">
-    <up-navbar
-      :title="deviceId"
-      :bg-color="THEME_GREEN"
-      title-color="#fff"
-      left-icon="arrow-left"
-      left-icon-color="#fff"
-      :auto-back="true"
-      :placeholder="true"
-      :safe-area-inset-top="true"
-    ></up-navbar>
+    <up-navbar :title="deviceId" :bg-color="THEME_GREEN" title-color="#fff" left-icon="arrow-left"
+      left-icon-color="#fff" :auto-back="true" :placeholder="true" :safe-area-inset-top="true"></up-navbar>
 
     <!-- 日期切换 -->
     <view class="date-bar">
@@ -23,103 +15,77 @@
 
     <!-- 地图区域 -->
     <view class="map-area">
-      <view class="map-bg">
-        <view class="track-line"></view>
-        <view class="car-marker">
-          <up-icon name="car-fill" color="#3dba6e" size="36"></up-icon>
-        </view>
-      </view>
-
-      <view class="map-tools">
-        <view class="map-tools__btn" @click="onMapLayer">
-          <up-icon name="grid" color="#333" size="22"></up-icon>
-        </view>
-        <view class="map-tools__btn" @click="onTraffic">
-          <up-icon name="car" color="#333" size="22"></up-icon>
-        </view>
-      </view>
-
-      <text class="map-logo">高德地图</text>
+      <amap-view ref="trackMap" class="track-map" :latitude="mapCenter.latitude" :longitude="mapCenter.longitude"
+        :scale="mapScale" :marker-title="'当前位置'" :address="trackInfo.address || ''" :markers="trackAssistMarkers"
+        :polyline="mapPolyline" :show-tools="true" @ready="onMapReady" />
+      <text v-if="trackLoading" class="map-logo">轨迹加载中...</text>
+      <text v-else-if="!trackPoints.length" class="map-logo">暂无轨迹</text>
     </view>
 
-    <!-- 轨迹信息 -->
-    <view class="info-panel">
-      <view class="info-panel__main">
-        <view class="info-panel__left">
-          <view class="info-row">
-            <text class="info-label">定位时间:</text>
-            <text class="info-value">{{ trackInfo.locateTime }}</text>
+    <view class="info-area">
+      <!-- 轨迹信息 -->
+      <view class="info-panel">
+        <view class="info-panel__main">
+          <view class="info-panel__left">
+            <view class="info-row">
+              <text class="info-label">定位时间:</text>
+              <text class="info-value">{{ trackInfo.locateTime }}</text>
+            </view>
+            <view class="info-row">
+              <text class="info-label">工作模式:</text>
+              <text class="info-value">{{ trackInfo.workMode }}</text>
+            </view>
+            <view class="info-row">
+              <text class="info-label">速度:</text>
+              <text class="info-value">{{ trackInfo.speed }}</text>
+            </view>
+            <view class="info-row">
+              <text class="info-label">里程:</text>
+              <text class="info-value">{{ trackInfo.mileage }}</text>
+            </view>
+            <view class="info-row info-row--addr">
+              <text class="info-label">地址:</text>
+              <text class="info-value">{{ trackInfo.address }}</text>
+            </view>
           </view>
-          <view class="info-row">
-            <text class="info-label">工作模式:</text>
-            <text class="info-value">{{ trackInfo.workMode }}</text>
-          </view>
-          <view class="info-row">
-            <text class="info-label">速度:</text>
-            <text class="info-value">{{ trackInfo.speed }}</text>
-          </view>
-          <view class="info-row">
-            <text class="info-label">里程:</text>
-            <text class="info-value">{{ trackInfo.mileage }}</text>
-          </view>
-          <view class="info-row info-row--addr">
-            <text class="info-label">地址:</text>
-            <text class="info-value">{{ trackInfo.address }}</text>
-          </view>
-        </view>
-        <view class="info-panel__right">
-          <view class="switch-row">
-            <text class="switch-label">基站定位</text>
-            <up-switch v-model="baseStationOn" :active-color="THEME_GREEN" size="20"></up-switch>
-          </view>
-          <view class="switch-row">
-            <text class="switch-label">WIFI定位</text>
-            <up-switch v-model="wifiOn" :active-color="THEME_GREEN" size="20"></up-switch>
+          <view class="info-panel__right">
+            <view class="switch-row">
+              <text class="switch-label">基站定位</text>
+              <up-switch v-model="baseStationOn" :active-color="THEME_GREEN" size="20"></up-switch>
+            </view>
+            <view class="switch-row">
+              <text class="switch-label">WIFI定位</text>
+              <up-switch v-model="wifiOn" :active-color="THEME_GREEN" size="20"></up-switch>
+            </view>
           </view>
         </view>
       </view>
-    </view>
 
-    <!-- 播放控制 -->
-    <view class="play-bar">
-      <view class="play-bar__btn" @click="togglePlay">
-        <up-icon :name="playing ? 'pause-circle-fill' : 'play-circle-fill'" color="#3dba6e" size="44"></up-icon>
-      </view>
-      <view class="play-bar__slider">
-        <up-slider
-          v-model="playProgress"
-          :min="0"
-          :max="100"
-          :active-color="THEME_GREEN"
-          inactive-color="#e0e0e0"
-          block-color="#3dba6e"
-          @change="onProgressChange"
-        ></up-slider>
-      </view>
-      <view class="play-bar__speed" @click="toggleSpeed">
-        <text>{{ speedLabel }}</text>
+      <!-- 播放控制 -->
+      <view class="play-bar">
+        <view class="play-bar__btn" @click="togglePlay">
+          <up-icon :name="playing ? 'pause-circle-fill' : 'play-circle-fill'" color="#3dba6e" size="44"></up-icon>
+        </view>
+        <view class="play-bar__slider">
+          <up-slider v-model="playProgress" :min="0" :max="100" :active-color="THEME_GREEN" inactive-color="#e0e0e0"
+            block-color="#3dba6e" @change="onProgressChange"></up-slider>
+        </view>
+        <view class="play-bar__speed" @click="toggleSpeed">
+          <text>{{ speedLabel }}</text>
+        </view>
       </view>
     </view>
 
     <!-- 时间选择弹窗 -->
-    <up-popup
-      :show="showTimePopup"
-      mode="center"
-      round="16"
-      :close-on-click-overlay="true"
-      @close="showTimePopup = false"
-    >
+    <up-popup :show="showTimePopup" mode="center" round="16" :close-on-click-overlay="true"
+      @close="showTimePopup = false">
       <view class="time-popup">
         <text class="time-popup__title">请选择时间</text>
 
         <view class="time-popup__quick">
-          <view
-            v-for="item in quickRanges"
-            :key="item.key"
-            class="quick-btn"
+          <view v-for="item in quickRanges" :key="item.key" class="quick-btn"
             :class="{ 'quick-btn--active': quickKey === item.key, 'quick-btn--custom': item.isCustom }"
-            @click="selectQuick(item.key)"
-          >
+            @click="selectQuick(item.key)">
             {{ item.label }}
           </view>
         </view>
@@ -148,16 +114,26 @@
 
 <script>
 import dayjs from 'dayjs'
+import {
+  fetchDeviceTrackAll,
+  filterTrackByLocateType,
+} from '@/api/device'
 import { THEME_GREEN } from '@/common/theme.js'
+import AmapView from '@/components/amap-view/amap-view.vue'
 
 const SPEED_LABELS = ['慢', '中', '快']
+const SPEED_INTERVALS = [1200, 700, 350]
+const STORAGE_KEY = 'currentDevice'
 
 export default {
+  components: {
+    AmapView,
+  },
   data() {
-    const today = dayjs('2026-05-21')
+    const today = dayjs()
     return {
       THEME_GREEN,
-      deviceId: '15070055007',
+      deviceId: '',
       currentDay: today,
       showTimePopup: false,
       quickKey: 'today',
@@ -167,21 +143,34 @@ export default {
         { key: 'week', label: '近一周' },
         { key: 'custom', label: '自定义', isCustom: true },
       ],
-      startTime: '2026-05-21 00:00:00',
-      endTime: '2026-05-21 23:59:59',
+      startTime: `${today.format('YYYY-MM-DD')} 00:00:00`,
+      endTime: `${today.format('YYYY-MM-DD')} 23:59:59`,
       baseStationOn: true,
       wifiOn: true,
       playing: false,
-      playProgress: 35,
+      playProgress: 0,
       speedIndex: 1,
-      trackInfo: {
-        locateTime: '2026/05/21 14:05:17',
-        workMode: 'Wi-Fi定位',
-        speed: '0km/h',
-        mileage: '0.16km',
-        address: '江西省九江市濂溪区前进东路1111号附近',
+      mapScale: 14,
+      mapCenter: {
+        latitude: 29.7052,
+        longitude: 115.9928,
       },
+      allTrackPoints: [],
+      trackPoints: [],
+      trackLoading: false,
+      currentPointIndex: 0,
+      playbackTimer: null,
+      trackInfo: {},
+      mapReady: false,
     }
+  },
+  watch: {
+    baseStationOn() {
+      this.applyTrackFilter()
+    },
+    wifiOn() {
+      this.applyTrackFilter()
+    },
   },
   computed: {
     currentDate() {
@@ -190,12 +179,90 @@ export default {
     speedLabel() {
       return SPEED_LABELS[this.speedIndex]
     },
+    mapPolyline() {
+      if (!this.trackPoints.length) return []
+      return [
+        {
+          points: this.trackPoints.map((point) => ({
+            latitude: point.latitude,
+            longitude: point.longitude,
+          })),
+          color: '#3dba6e',
+          width: 6,
+          dottedLine: false,
+          arrowLine: true,
+        },
+      ]
+    },
+    trackAssistMarkers() {
+      if (!this.trackPoints.length) return []
+      const markers = []
+      const start = this.trackPoints[0]
+      const end = this.trackPoints[this.trackPoints.length - 1]
+      markers.push({
+        id: 101,
+        latitude: start.latitude,
+        longitude: start.longitude,
+        title: '起点',
+        width: 22,
+        height: 30,
+        callout: {
+          content: '起点',
+          display: 'ALWAYS',
+          color: '#fff',
+          bgColor: '#4a9eff',
+          borderRadius: 8,
+          padding: 6,
+          fontSize: 11,
+        },
+      })
+      if (this.trackPoints.length > 1) {
+        markers.push({
+          id: 102,
+          latitude: end.latitude,
+          longitude: end.longitude,
+          title: '终点',
+          width: 22,
+          height: 30,
+          callout: {
+            content: '终点',
+            display: 'ALWAYS',
+            color: '#fff',
+            bgColor: '#ff6b6b',
+            borderRadius: 8,
+            padding: 6,
+            fontSize: 11,
+          },
+        })
+      }
+      this.trackPoints.forEach((p, idx) => {
+        if (p.ptype === 1 && idx > 0 && idx < this.trackPoints.length - 1) {
+          markers.push({
+            id: 200 + idx,
+            latitude: p.latitude,
+            longitude: p.longitude,
+            title: '停留',
+            width: 18,
+            height: 18,
+            callout: {
+              content: '停留',
+              display: 'BYCLICK',
+              color: '#fff',
+              bgColor: '#ff9f43',
+              borderRadius: 6,
+              padding: 4,
+              fontSize: 10,
+            },
+          })
+        }
+      })
+      return markers
+    },
   },
-  onLoad(options) {
-    if (options.deviceId) {
-      this.deviceId = options.deviceId
-    }
+  onLoad() {
+    this.deviceId = uni.getStorageSync('currentDevice').sn
     this.applyQuickRange(this.quickKey)
+    this.loadTrack()
   },
   onShow() {
     const saved = uni.getStorageSync('track_custom_time')
@@ -208,6 +275,9 @@ export default {
       uni.removeStorageSync('track_custom_time')
       this.loadTrack()
     }
+  },
+  onUnload() {
+    this.stopPlayback()
   },
   methods: {
     changeDay(delta) {
@@ -246,9 +316,10 @@ export default {
       }
       this.quickKey = key
       this.applyQuickRange(key)
+      this.loadTrack()
     },
     applyQuickRange(key) {
-      const today = dayjs('2026-05-21')
+      const today = dayjs()
       if (key === 'today') {
         this.currentDay = today
         this.applyDayRange()
@@ -271,23 +342,119 @@ export default {
     pickEndTime() {
       uni.$u.toast('选择结束时间')
     },
-    loadTrack() {
-      // TODO: 对接轨迹接口
+    applyTrackFilter() {
+      const filtered = filterTrackByLocateType(this.allTrackPoints, {
+        baseStationOn: this.baseStationOn,
+        wifiOn: this.wifiOn,
+      })
+      if (filtered.length) {
+        filtered[0].status = 'start'
+        filtered[filtered.length - 1].status = 'end'
+      }
+      this.trackPoints = filtered
+      this.stopPlayback()
+      this.playProgress = 0
+      this.currentPointIndex = 0
+      if (filtered.length) {
+        this.syncCurrentPoint(0)
+      } else {
+        this.trackInfo = {}
+      }
+    },
+    async loadTrack() {
+      const timeBegin = dayjs(this.startTime.replace(/\//g, '-')).unix()
+      const timeEnd = dayjs(this.endTime.replace(/\//g, '-')).unix()
+      if (!timeBegin || !timeEnd || timeEnd <= timeBegin) {
+        uni.$u.toast('时间范围无效')
+        return
+      }
+
+      this.trackLoading = true
+      this.stopPlayback()
+
+      try {
+        const points = await fetchDeviceTrackAll({
+          sn: this.deviceId,
+          timeBegin,
+          timeEnd,
+          limitSize: 100,
+        })
+        this.allTrackPoints = points
+        this.applyTrackFilter()
+        if (!this.trackPoints.length) {
+          uni.$u.toast('该时间段暂无轨迹')
+        }
+      } catch (e) {
+        console.error('[track] loadTrack failed:', e)
+        this.allTrackPoints = []
+        this.trackPoints = []
+        this.trackInfo = {}
+      } finally {
+        this.trackLoading = false
+      }
     },
     togglePlay() {
-      this.playing = !this.playing
+      if (!this.trackPoints.length) {
+        uni.$u.toast('暂无轨迹数据')
+        return
+      }
+      if (this.playing) {
+        this.stopPlayback()
+        return
+      }
+      this.playing = true
+      this.playbackTimer = setInterval(() => {
+        const nextIndex = this.currentPointIndex + 1
+        if (nextIndex >= this.trackPoints.length) {
+          this.stopPlayback()
+          return
+        }
+        this.syncCurrentPoint(nextIndex)
+      }, SPEED_INTERVALS[this.speedIndex])
     },
     onProgressChange(val) {
       this.playProgress = val
+      if (!this.trackPoints.length) return
+      const idx = Math.round((val / 100) * (this.trackPoints.length - 1))
+      this.syncCurrentPoint(idx)
     },
     toggleSpeed() {
+      const wasPlaying = this.playing
       this.speedIndex = (this.speedIndex + 1) % SPEED_LABELS.length
+      if (wasPlaying) {
+        this.stopPlayback()
+        this.togglePlay()
+      }
     },
-    onMapLayer() {
-      uni.$u.toast('切换图层')
+    onMapReady() {
+      this.mapReady = true
     },
-    onTraffic() {
-      uni.$u.toast('路况')
+    stopPlayback() {
+      this.playing = false
+      if (this.playbackTimer) {
+        clearInterval(this.playbackTimer)
+        this.playbackTimer = null
+      }
+    },
+    syncCurrentPoint(index) {
+      if (!this.trackPoints.length) return
+      const safeIndex = Math.max(0, Math.min(index, this.trackPoints.length - 1))
+      this.currentPointIndex = safeIndex
+      const point = this.trackPoints[safeIndex]
+      this.mapCenter = {
+        latitude: point.latitude,
+        longitude: point.longitude,
+      }
+      this.trackInfo = {
+        locateTime: point.locateTime,
+        workMode: point.workMode,
+        speed: point.speed,
+        mileage: point.mileage,
+        address: point.address,
+      }
+      this.playProgress = this.trackPoints.length <= 1
+        ? 0
+        : Math.round((safeIndex / (this.trackPoints.length - 1)) * 100)
     },
   },
 }
@@ -329,52 +496,16 @@ export default {
 
 .map-area {
   position: relative;
-  flex: 1;
-  min-height: 420rpx;
+  flex: none;
+  width: 100%;
+  height: calc(100vh - env(safe-area-inset-bottom));
   overflow: hidden;
 }
 
-.map-bg {
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(180deg, #c5dce8 0%, #dfeef5 50%, #e8f0e8 100%);
-  position: relative;
-}
-
-.track-line {
+.track-map {
   position: absolute;
-  left: 15%;
-  top: 35%;
-  width: 55%;
-  height: 8rpx;
-  background: repeating-linear-gradient(
-    90deg,
-    #4a9eff 0,
-    #4a9eff 16rpx,
-    transparent 16rpx,
-    transparent 24rpx
-  );
-  transform: rotate(-8deg);
-  border-radius: 4rpx;
-  box-shadow: 0 0 0 2rpx rgba(74, 158, 255, 0.3);
-
-  &::after {
-    content: '>>>>>>>>';
-    position: absolute;
-    right: -80rpx;
-    top: -20rpx;
-    font-size: 20rpx;
-    color: #4a9eff;
-    letter-spacing: 2rpx;
-  }
-}
-
-.car-marker {
-  position: absolute;
-  left: 58%;
-  top: 30%;
-  transform: rotate(15deg);
-  filter: drop-shadow(0 4rpx 8rpx rgba(0, 0, 0, 0.15));
+  inset: 0;
+  z-index: 0;
 }
 
 .map-tools {
@@ -397,6 +528,10 @@ export default {
   box-shadow: 0 4rpx 16rpx rgba(0, 0, 0, 0.1);
 }
 
+.map-tools__btn--active {
+  border: 2rpx solid #3dba6e;
+}
+
 .map-logo {
   position: absolute;
   left: 16rpx;
@@ -406,14 +541,24 @@ export default {
   background: rgba(255, 255, 255, 0.8);
   padding: 4rpx 12rpx;
   border-radius: 4rpx;
+  z-index: 2;
+}
+
+.info-area {
+  width: calc(100% - 40rpx);
+  position: fixed;
+  bottom: 80rpx;
+  left: 0;
+  margin: 0 20rpx;
 }
 
 .info-panel {
   margin: 0 0;
-  background: #f5f5f5;
-  border-radius: 24rpx 24rpx 0 0;
+  background: #fff;
+  border-radius: 24rpx;
   padding: 24rpx 28rpx 16rpx;
   flex-shrink: 0;
+  margin-bottom: 20rpx;
 }
 
 .info-panel__main {
@@ -476,6 +621,7 @@ export default {
   background: rgba(255, 255, 255, 0.95);
   box-shadow: 0 -4rpx 20rpx rgba(0, 0, 0, 0.06);
   flex-shrink: 0;
+  border-radius: 24rpx;
 }
 
 .play-bar__btn {

@@ -8,50 +8,37 @@
         <text class="header__title">增值服务</text>
         <view class="header__placeholder"></view>
       </view>
-
       <view class="user-block">
         <view class="user-avatar">
           <up-icon name="account-fill" color="#ccc" size="40"></up-icon>
         </view>
         <view class="user-info">
-          <text class="user-info__phone">{{ phone }}</text>
-          <view class="user-info__row">
+          <text class="user-info__phone">{{ user.mobile }}</text>
+          <!-- <view class="user-info__row">
             <up-icon name="phone-fill" color="rgba(255,255,255,0.8)" size="14"></up-icon>
             <text class="user-info__sub">{{ bindPhone }}</text>
-          </view>
+          </view> -->
           <text class="user-info__device">设备号: {{ deviceId }}</text>
         </view>
       </view>
 
       <view class="tab-bar">
-        <view
-          v-for="tab in tabs"
-          :key="tab.key"
-          class="tab-bar__item"
-          :class="{ 'tab-bar__item--active': activeTab === tab.key }"
-          @click="onMainTabChange(tab.key)"
-        >
+        <view v-for="tab in tabs" :key="tab.key" class="tab-bar__item"
+          :class="{ 'tab-bar__item--active': activeTab === tab.key }" @click="onMainTabChange(tab.key)">
           <text>{{ tab.label }}</text>
         </view>
       </view>
     </view>
 
     <scroll-view class="content" scroll-y :style="{ height: scrollHeight }">
-      <text v-if="activeTab !== 'position'" class="content-subtitle">{{ tabSubtitle }}</text>
-
+      <text v-if="activeTab !== 'alarm'" class="content-subtitle">{{ tabSubtitle }}</text>
       <!-- 告警子 Tab -->
       <view v-if="activeTab === 'alarm'" class="alarm-subtabs">
-        <view
-          v-for="sub in alarmSubTabs"
-          :key="sub.key"
-          class="alarm-subtabs__item"
-          :class="{ 'alarm-subtabs__item--active': alarmSubTab === sub.key }"
-          @click="onAlarmSubChange(sub.key)"
-        >
+        <view v-for="sub in alarmSubTabs" :key="sub.key" class="alarm-subtabs__item"
+          :class="{ 'alarm-subtabs__item--active': alarmSubTab === sub.key }" @click="onAlarmSubChange(sub.key)">
           <text>{{ sub.label }}</text>
         </view>
       </view>
-
       <!-- 当前套餐状态 -->
       <view class="card card--current">
         <text class="card__title">当前套餐</text>
@@ -60,7 +47,8 @@
             <view class="alarm-status__head">
               <text class="alarm-status__hint">套餐用量</text>
               <text class="alarm-status__text">
-                剩余<text class="alarm-status__num">{{ alarmStatus.remain }}</text>条/共<text class="alarm-status__num">{{ alarmStatus.total }}</text>条
+                剩余<text class="alarm-status__num">{{ alarmStatus.remain }}</text>条/共<text class="alarm-status__num">{{
+                  alarmStatus.total }}</text>条
               </text>
             </view>
             <view class="alarm-progress">
@@ -71,8 +59,9 @@
           </view>
         </template>
         <template v-else>
-          <text class="card__desc">{{ currentStatus.desc }}</text>
-          <text class="card__expire">过期时间：{{ currentStatus.expire }}</text>
+          <text class="card__desc">{{ currentPackage.remark }}</text>
+          <text class="card__expire" v-if="user.positionExpireTime">过期时间：{{ user.positionExpireTime }}</text>
+          <text class="card__expire" v-else>当前无服务信息</text>
         </template>
       </view>
 
@@ -80,16 +69,11 @@
       <view class="card">
         <text class="section__title section__title--in">当前套餐</text>
         <view class="package-list">
-          <view
-            v-for="(pkg, index) in currentPackages"
-            :key="pkg.key"
-            class="package-card"
-            :class="packageCardClass(index)"
-            @click="selectedIndex = index"
-          >
+          <view v-for="(pkg, index) in currentPackages" :key="pkg.key" class="package-card"
+            :class="packageCardClass(index)" @click="selectedIndex = index">
             <text class="package-card__name" :style="packageNameStyle(index)">{{ pkg.name }}</text>
-            <text class="package-card__price" :style="packagePriceStyle(index)">¥{{ pkg.price }}</text>
-            <text v-if="pkg.originPrice" class="package-card__origin">¥{{ pkg.originPrice }}</text>
+            <text class="package-card__price" :style="packageNameStyle(index)">¥{{ (pkg.discountPriceCent || pkg.priceCent) / 100 }}</text>
+            <text v-if="pkg.discountPriceCent" :style="packageNameStyle(index)" class="package-card__origin">¥{{ pkg.priceCent / 100 }}</text>
           </view>
         </view>
       </view>
@@ -112,23 +96,11 @@
       <view class="card card--plain">
         <view class="plain-block">
           <text class="plain-block__label">套餐内容：</text>
-          <view class="list-text">
-            <text
-              v-for="(line, i) in currentContent"
-              :key="'c' + i"
-              class="list-text__item"
-            >{{ contentLinePrefix(i) }}{{ line }}</text>
-          </view>
+          <view class="list-text">{{ currentPackage.content }}</view>
         </view>
         <view class="plain-block">
           <text class="plain-block__label">购买说明：</text>
-          <view class="list-text">
-            <text
-              v-for="(line, i) in purchaseNotes"
-              :key="'n' + i"
-              class="list-text__item"
-            >{{ i + 1 }}. {{ line }}</text>
-          </view>
+          <view class="list-text">{{ currentPackage.description }}</view>
         </view>
         <view class="service-link">
           <text>对订单有任何疑问，请联系</text>
@@ -149,7 +121,8 @@
 
 <script>
 import { THEME_GREEN } from '@/common/theme.js'
-
+import { getGoodsList, createOrder } from '@/api/order'
+import { requestWechatPay } from '@/common/wx-pay'
 const PURCHASE_NOTES = [
   '此为虚拟商品，一经售出概不退款',
   '此套餐只能用于此设备，切换到其他设备需要重新购买',
@@ -161,21 +134,22 @@ export default {
       THEME_GREEN,
       statusBarHeight: 20,
       scrollHeight: 'auto',
-      phone: '15070055007',
+      user: {},
       bindPhone: '15070005007',
-      deviceId: '15070005007',
+      deviceId: '',
       activeTab: 'position',
-      alarmSubTab: 'wechat',
+      alarmSubTab: 'alarm_wechat',
       selectedIndex: 0,
       tabs: [
         { key: 'position', label: '秒定服务' },
         { key: 'share', label: '分享服务' },
         { key: 'alarm', label: '告警服务' },
       ],
+      goodsList: [],
       alarmSubTabs: [
-        { key: 'wechat', label: '微信告警' },
-        { key: 'phone', label: '电话告警' },
-        { key: 'sms', label: '短信告警' },
+        { key: 'alarm_wechat', label: '微信告警' },
+        { key: 'alarm_phone', label: '电话告警' },
+        { key: 'alarm_sms', label: '短信告警' },
       ],
       tabData: {
         position: {
@@ -184,16 +158,10 @@ export default {
             expire: '2027/01/13 09:33:24',
           },
           theme: 'blue',
-          packages: [
-            { key: 'lifetime', name: '终身秒定包', price: 168, originPrice: 298 },
-            { key: 'five', name: '五年秒定包', price: 128 },
-            { key: 'one', name: '一年秒定包', price: 88 },
-          ],
           content: [
             '包含终身定位服务、精准轨迹查看、180天云端存储。',
             '180天滚动存储，过期后30天数据将删除。',
           ],
-          numberedContent: true,
         },
         share: {
           status: {
@@ -201,44 +169,22 @@ export default {
             expire: '当前无服务信息',
           },
           theme: 'red',
-          packages: [
-            { key: 'forever', name: '永久定位分享', price: 128, originPrice: 398 },
-            { key: 'year', name: '一年定位分享', price: 88, originPrice: 298 },
-            { key: 'quarter', name: '季度定位分享', price: 38, originPrice: 198 },
-          ],
-          content: ['永久定位分享套餐'],
-          numberedContent: false,
         },
         alarm: {
-          wechat: {
-            status: { remain: 1000, total: 1000, percent: 100 },
+          alarm_wechat: {
+            remain_key: 'alarmWechatLeft',
+            total_key: 'alarmWechatTotal',
             theme: 'yellow',
-            packages: [
-              { key: 'unlimited', name: '无限微信告警', price: 39.8, originPrice: 328 },
-              { key: '20k', name: '20000条微信告警', price: 19.8, originPrice: 299.9 },
-              { key: '5k', name: '5000条微信告警', price: 9.8, originPrice: 199.9 },
-            ],
-            content: ['共赠送无限条微信告警，永久有效。'],
           },
-          phone: {
-            status: { remain: 0, total: 100, percent: 0 },
+          alarm_phone: {
+            remain_key: 'alarmPhoneLeft',
+            total_key: 'alarmPhoneTotal',
             theme: 'yellow',
-            packages: [
-              { key: 'unlimited', name: '无限电话告警', price: 59.8, originPrice: 428 },
-              { key: '500', name: '500次电话告警', price: 29.8, originPrice: 199.9 },
-              { key: '100', name: '100次电话告警', price: 9.8, originPrice: 99.9 },
-            ],
-            content: ['共赠送无限次电话告警，永久有效。'],
           },
-          sms: {
-            status: { remain: 200, total: 500, percent: 40 },
+          alarm_sms: {
+            remain_key: 'alarmSmsLeft',
+            total_key: 'alarmSmsTotal',
             theme: 'yellow',
-            packages: [
-              { key: 'unlimited', name: '无限短信告警', price: 49.8, originPrice: 368 },
-              { key: '10k', name: '10000条短信告警', price: 24.8, originPrice: 249.9 },
-              { key: '2k', name: '2000条短信告警', price: 9.8, originPrice: 129.9 },
-            ],
-            content: ['共赠送无限条短信告警，永久有效。'],
           },
         },
       },
@@ -247,7 +193,7 @@ export default {
   },
   computed: {
     tabSubtitle() {
-      const map = { share: '分享服务', alarm: '告警服务' }
+      const map = { position: '秒定服务', share: '分享服务', alarm: '告警服务' }
       return map[this.activeTab] || ''
     },
     currentTabConfig() {
@@ -256,29 +202,28 @@ export default {
       }
       return this.tabData[this.activeTab]
     },
-    currentStatus() {
-      return this.currentTabConfig?.status || {}
-    },
-    alarmStatus() {
-      return this.currentStatus.remain !== undefined
-        ? this.currentStatus
-        : { remain: 0, total: 0, percent: 0 }
-    },
     currentPackages() {
-      return this.currentTabConfig?.packages || []
+      if (this.activeTab === 'alarm') {
+        return this.goodsList.filter(item => item.subType === this.alarmSubTab)
+      }
+      return this.goodsList.filter(item => item.type === this.activeTab)
     },
-    currentContent() {
-      return this.currentTabConfig?.content || []
+    currentPackage() {
+      return this.currentPackages[this.selectedIndex] || {}
     },
     currentTheme() {
       return this.currentTabConfig?.theme || 'blue'
     },
-    numberedContent() {
-      return this.currentTabConfig?.numberedContent !== false
+    alarmStatus() {
+      return {
+        remain: this.user[this.currentTabConfig.remain_key],
+        total: this.user[this.currentTabConfig.total_key],
+        percent: this.user[this.currentTabConfig.remain_key] / this.user[this.currentTabConfig.total_key] * 100,
+      }
     },
     selectedPrice() {
-      const pkg = this.currentPackages[this.selectedIndex]
-      return pkg?.price ?? 0
+      const pkg = this.currentPackages[this.selectedIndex] 
+      return pkg?.priceCent / 100 ?? 0
     },
     themeColor() {
       const map = { blue: '#4a9eff', red: '#e74c3c', yellow: '#f1c40f' }
@@ -294,14 +239,21 @@ export default {
     },
   },
   onLoad(options) {
-    if (options.deviceId) this.deviceId = options.deviceId
-    if (options.phone) this.phone = options.phone
+    this.user = uni.getStorageSync('userInfo')
+    this.deviceId = uni.getStorageSync('currentDevice').sn
+
     if (options.tab && ['position', 'share', 'alarm'].includes(options.tab)) {
       this.activeTab = options.tab
     }
+    this.loadGoodsList()
     this.calcScrollHeight()
   },
   methods: {
+    loadGoodsList() {
+      getGoodsList().then(res => {
+        this.goodsList = res
+      })
+    },
     calcScrollHeight() {
       const sys = uni.getSystemInfoSync()
       this.statusBarHeight = sys.statusBarHeight || 20
@@ -332,9 +284,6 @@ export default {
       if (this.selectedIndex !== index) return {}
       return { color: this.themeColor }
     },
-    contentLinePrefix(i) {
-      return this.numberedContent ? `${i + 1}. ` : ''
-    },
     goBack() {
       uni.navigateBack()
     },
@@ -343,10 +292,24 @@ export default {
       if (!pkg) return
       uni.showModal({
         title: '确认支付',
-        content: `支付 ¥${pkg.price} 购买「${pkg.name}」？`,
-        success: (res) => {
-          if (res.confirm) {
-            uni.$u.toast('支付功能对接中')
+        content: `支付 ¥${pkg.priceCent / 100} 购买「${pkg.name}」？`,
+        success: async (res) => {
+          if (!res.confirm) return
+          try {
+            const payData = await createOrder({
+              goodsId: pkg.id,
+              bindDeviceId: this.deviceId,
+              payChannel: 'wx_lite',
+              quantity: 1,
+            })
+            await requestWechatPay(payData.wechatPay)
+            uni.$u.toast('支付成功')
+            this.loadGoodsList()
+          } catch (err) {
+            const msg = err?.message || '支付失败'
+            if (msg !== '已取消支付') {
+              uni.$u.toast(msg)
+            }
           }
         },
       })
@@ -469,10 +432,11 @@ export default {
 
 .content-subtitle {
   font-size: 30rpx;
-  color: #333;
+  color: #666;
   font-weight: 500;
   display: block;
   margin-bottom: 20rpx;
+  text-align: center;
 }
 
 .alarm-subtabs {
@@ -532,15 +496,13 @@ export default {
   }
 
   .card__desc {
-    font-size: 28rpx;
-    color: #333;
+    font-size: 26rpx;
+    color: #999;
     display: block;
-    margin-bottom: 8rpx;
-    line-height: 1.5;
   }
 
   .card__expire {
-    font-size: 24rpx;
+    font-size: 26rpx;
     color: #999;
   }
 }
@@ -686,7 +648,7 @@ export default {
 .plain-block__label {
   font-size: 28rpx;
   color: #333;
-  font-weight: 500;
+  font-weight: 600;
   display: block;
   margin-bottom: 12rpx;
 }
@@ -697,6 +659,11 @@ export default {
   color: #666;
   line-height: 1.7;
   margin-bottom: 8rpx;
+}
+
+.list-text {
+  font-size: 26rpx;
+  color: #666;
 }
 
 .service-link {

@@ -3,7 +3,8 @@
     <!-- 地图区域 -->
     <view class="map-wrap">
       <amap-view ref="amapRef" class="map-amap" :latitude="mapCenter.latitude" :longitude="mapCenter.longitude"
-        :scale="mapScale" :marker-title="device.name || device.id" :address="device.address" @located="onMapLocated" />
+        :scale="mapScale" :marker-title="device.name || device.id" :marker-icon="deviceMarkerIcon"
+        :address="device.address" @located="onMapLocated" />
 
       <view class="map-actions-left">
         <view class="map-refresh" @click="onRefresh">
@@ -18,8 +19,8 @@
     </view>
 
     <!-- 设备信息面板 -->
-    <view class="device-panel">
-      <view v-if="showBanner" class="device-panel__banner" @click="onFastLocate">
+    <view class="device-panel" v-if="showBanner">
+      <view class="device-panel__banner" @click="onFastLocate">
         <view class="banner-pin">
           <view class="banner-pin__shadow"></view>
           <view class="banner-pin__body">
@@ -35,22 +36,22 @@
       <view class="device-panel__body" :class="{ 'device-panel__body--no-banner': !showBanner }">
         <view class="device-head">
           <view class="device-head__left" @click="goDeviceHome">
-            <text class="device-id">{{ device.id }}</text>
+            <text class="device-id">{{ device.imei }}</text>
             <view class="status-badge">
               {{ device.status }}
             </view>
-            <text class="status-duration">{{ device.statusDuration }}</text>
+            <!-- <text class="status-duration">{{ device.statusDuration }}</text> -->
           </view>
           <view class="device-battery">
-            <view class="battery-icon" :class="{ 'battery-icon--low': device.battery <= 20 }">
+            <view class="battery-icon" :class="{ 'battery-icon--low': device.power <= 20 }">
               <view class="battery-icon__body">
-                <view class="battery-icon__level" :style="{ width: device.battery + '%' }">
+                <view class="battery-icon__level" :style="{ width: device.power + '%' }">
                 </view>
               </view>
               <view class="battery-icon__head"></view>
             </view>
-            <text class="device-battery__text" :class="{ 'device-battery__text--low': device.battery <= 20 }">
-              {{ device.battery }}%
+            <text class="device-battery__text" :class="{ 'device-battery__text--low': device.power <= 20 }">
+              {{ device.power }}%
             </text>
           </view>
         </view>
@@ -84,7 +85,7 @@
         <view class="device-actions">
           <view v-for="action in actions" :key="action.key" class="device-actions__item" @click="onAction(action)">
             <view class="device-actions__icon" :style="{ background: action.bg }">
-              <up-icon :name="action.icon" color="#fff" size="28"></up-icon>
+              <up-icon :name="action.icon" color="#fff" size="20"></up-icon>
             </view>
             <text class="device-actions__label">{{ action.label }}</text>
           </view>
@@ -105,25 +106,21 @@ import {
   getDistanceMeters,
   formatDistance,
 } from '@/common/amap'
+import { getDeviceList, normalizeDeviceList, getDeviceDetail, createShareLink } from '@/api/device'
+import {
+  normalizeShareLinkResult,
+  buildSharePayload,
+  prepareMpShareMenu,
+  shareLocationToWechatSession,
+  getMpShareAppMessageConfig,
+  getMpShareTimelineConfig,
+  copyShareLink,
+} from '@/common/wx-share'
 
+import carIcon from '@/static/car.png'
 const REFRESH_INTERVAL = 20
 const STORAGE_KEY = 'currentDevice'
 
-const DEFAULT_DEVICE = {
-  id: '15070055007',
-  name: '直播间展示 533',
-  sn: '14166347553',
-  status: '离线',
-  statusType: 'offline',
-  statusDuration: '离线23小时',
-  battery: 0,
-  address: '江西省九江市濂溪区前进西路靠近安泰汽车检测',
-  latitude: DEFAULT_MAP_CENTER.latitude,
-  longitude: DEFAULT_MAP_CENTER.longitude,
-  meta: '0km/h | 正南 | Wi-Fi定位 | JSK1 | 离线 | 定位时间:2026/05/21 17:47:18 | 未充电 | 智能定位模式 | 震动告警:开启',
-  updateTime: '2026/05/21 17:47:18',
-  distance: '591.528km',
-}
 
 export default {
   components: { AmapView },
@@ -138,18 +135,35 @@ export default {
         latitude: DEFAULT_MAP_CENTER.latitude,
         longitude: DEFAULT_MAP_CENTER.longitude,
       },
+      deviceMarkerIcon: carIcon,
       myLocation: null,
-      device: { ...DEFAULT_DEVICE },
+      hasBoundDevice: true,
+      deviceCheckDone: false,
+      device: {},
       actions: [
         { key: 'precise', label: '高精准定位', icon: 'map-fill', bg: 'linear-gradient(135deg,#4a9eff,#2b7de9)' },
         { key: 'service', label: '增值服务', icon: 'gift-fill', bg: 'linear-gradient(135deg,#ff9f43,#f57c00)' },
         { key: 'track', label: '历史轨迹', icon: 'clock-fill', bg: 'linear-gradient(135deg,#ff6b6b,#e53935)' },
         { key: 'more', label: '更多', icon: 'more-dot-fill', bg: 'linear-gradient(135deg,#ffd54f,#ffb300)' },
       ],
+      user: {},
+      sharePending: null,
     }
   },
+  onLoad() { },
+  onShareAppMessage() {
+    const cfg = getMpShareAppMessageConfig(this.sharePending)
+    if (cfg) return cfg
+    return { title: '秒速定位', path: 'pages/index/index' }
+  },
+  onShareTimeline() {
+    const cfg = getMpShareTimelineConfig(this.sharePending)
+    if (cfg) return cfg
+    return { title: '秒速定位' }
+  },
   onShow() {
-    this.loadCurrentDevice()
+    this.user = uni.getStorageSync('userInfo')
+    this.checkDeviceBound()
     this.syncMapCenter()
     this.updateDistanceFromMe()
     this.startRefreshCountdown()
@@ -161,6 +175,7 @@ export default {
     this.stopRefreshCountdown()
   },
   methods: {
+
     startRefreshCountdown() {
       this.stopRefreshCountdown()
       this.refreshCount = REFRESH_INTERVAL
@@ -216,23 +231,64 @@ export default {
       this.refreshMapInfo(true)
       this.refreshCount = REFRESH_INTERVAL
     },
-    loadCurrentDevice() {
+    async checkDeviceBound() {
+      try {
+        const res = await getDeviceList()
+        const list = normalizeDeviceList(res)
+        this.hasBoundDevice = list.length > 0
+        this.deviceCheckDone = true
+        if (!list.length) {
+          this.promptBindDevice()
+          return
+        }
+        const saved = uni.getStorageSync(STORAGE_KEY)
+        if (!saved.id) {
+          uni.setStorageSync(STORAGE_KEY, list[0])
+        }
+        this.loadCurrentDevice()
+      } catch (e) {
+        console.error('[index] checkDeviceBound failed:', e)
+        this.deviceCheckDone = true
+      }
+    },
+    promptBindDevice() {
+      uni.showModal({
+        title: '提示',
+        content: '您还未绑定设备，是否前往绑定？',
+        confirmText: '去绑定',
+        confirmColor: '#3dba6e',
+        success: (res) => {
+          if (res.confirm) {
+            uni.navigateTo({ url: '/pages/device/bind' })
+          }
+        },
+      })
+    },
+    async loadCurrentDevice() {
       const saved = uni.getStorageSync(STORAGE_KEY)
       if (!saved || !saved.sn) return
-      const status = saved.status || '离线'
-      this.device = {
-        ...DEFAULT_DEVICE,
-        id: saved.sn,
-        name: saved.name || saved.sn,
-        sn: saved.sn,
-        status,
-        statusType: saved.statusType || (status === '静止' ? 'static' : 'offline'),
-        statusDuration: status === '静止' ? '静止中' : '离线23小时',
-        meta: DEFAULT_DEVICE.meta.replace(/离线|静止/g, status),
-        latitude: saved.latitude ?? DEFAULT_DEVICE.latitude,
-        longitude: saved.longitude ?? DEFAULT_DEVICE.longitude,
-        address: saved.address || DEFAULT_DEVICE.address,
-      }
+      const res = await getDeviceDetail({ sn: saved.sn })
+      res.status = res.state == 'e_line_sleep' ? '静止' : res.state == 'e_line_down' ? '离线' : '在线'
+      res.last_pos = JSON.parse(res.last_pos)
+      const pos = res.last_pos.wgs.split(',')
+      res.latitude = Number(pos[0])
+      res.longitude = Number(pos[1])
+      res.address = res.last_pos.addr
+      this.device = res
+      this.refreshMapInfo()
+      // const status = saved.status || '离线'
+      // this.device = {
+      //   id: saved.sn,
+      //   name: saved.name || saved.sn,
+      //   sn: saved.sn,
+      //   status,
+      //   statusType: saved.statusType || (status === '静止' ? 'static' : 'offline'),
+      //   statusDuration: status === '静止' ? '静止中' : '离线23小时',
+      //   meta: DEFAULT_DEVICE.meta.replace(/离线|静止/g, status),
+      //   latitude: saved.latitude ?? DEFAULT_DEVICE.latitude,
+      //   longitude: saved.longitude ?? DEFAULT_DEVICE.longitude,
+      //   address: saved.address || DEFAULT_DEVICE.address,
+      // }
       this.syncMapCenter()
       // TODO: 根据选中设备重新拉取定位详情
     },
@@ -256,8 +312,61 @@ export default {
     onCloseBanner() {
       this.showBanner = false
     },
-    onShare() {
-      this.showShareModal = true
+    isShareServiceActive() {
+      const u = this.user || {}
+      if (u.shareUnlimited) return true
+      const exp = u.shareExpireTime
+      if (!exp) return false
+      const n = Number(exp)
+      const ms = n > 1e12 ? n : Number.isFinite(n) && n > 0 ? n * 1000 : Date.parse(exp)
+      return ms > Date.now()
+    },
+    async onShare() {
+      if (!this.isShareServiceActive()) {
+        this.showShareModal = true
+        return
+      }
+      const saved = uni.getStorageSync(STORAGE_KEY)
+      const sn = saved?.sn || this.device?.sn
+      if (!sn) {
+        uni.$u?.toast?.('请先选择设备')
+        return
+      }
+      try {
+        const res = await createShareLink({ sn })
+        const { shareToken, expireAt } = normalizeShareLinkResult(res)
+        if (!shareToken) {
+          uni.$u?.toast?.('生成分享失败')
+          return
+        }
+        this.sharePending = buildSharePayload({
+          shareToken,
+          expireAt,
+          deviceName: this.device.name || this.device.imei || sn,
+          address: this.device.address,
+          imageUrl: carIcon,
+        })
+        // #ifdef MP-WEIXIN
+        prepareMpShareMenu()
+        uni.showModal({
+          title: '分享给微信好友',
+          content: '请点击右上角「···」，选择「发送给朋友」完成分享',
+          showCancel: false,
+        })
+        // #endif
+        // #ifdef APP-PLUS
+        await shareLocationToWechatSession(this.sharePending)
+        // #endif
+        // #ifdef H5
+        await copyShareLink(this.sharePending)
+        uni.$u?.toast?.('分享链接已复制')
+        // #endif
+      } catch (e) {
+        const msg = e?.message || ''
+        if (msg && !/cancel|取消/i.test(msg)) {
+          uni.$u?.toast?.(msg)
+        }
+      }
     },
     onShareOrder(deviceId) {
       const id = deviceId || this.device.id
@@ -267,7 +376,7 @@ export default {
     },
     goDeviceHome() {
       uni.navigateTo({
-        url: `/pages/device/device?deviceId=${this.device.id}&updateTime=${encodeURIComponent(this.device.updateTime)}`,
+        url: `/pages/device/device`,
       })
     },
     onAction(action) {
@@ -283,7 +392,7 @@ export default {
       }
       if (action.key === 'service') {
         uni.navigateTo({
-          url: `/pages/service/service?deviceId=${this.device.id}&phone=${this.device.id}`,
+          url: `/pages/service/service`,
         })
         return
       }
@@ -301,7 +410,7 @@ export default {
 
 .map-wrap {
   position: relative;
-  height: 60vh;
+  height: 65vh;
   overflow: hidden;
 }
 
@@ -612,8 +721,8 @@ export default {
 }
 
 .device-actions__icon {
-  width: 96rpx;
-  height: 96rpx;
+  width: 70rpx;
+  height: 70rpx;
   border-radius: 50%;
   display: flex;
   align-items: center;

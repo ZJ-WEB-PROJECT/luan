@@ -1,15 +1,7 @@
 <template>
   <view class="page">
-    <up-navbar
-      title="设置"
-      :bg-color="THEME_GREEN"
-      title-color="#fff"
-      left-icon="arrow-left"
-      left-icon-color="#fff"
-      :auto-back="true"
-      :placeholder="true"
-      :safe-area-inset-top="true"
-    ></up-navbar>
+    <up-navbar title="设置" :bg-color="THEME_GREEN" title-color="#fff" left-icon="arrow-left" left-icon-color="#fff"
+      :auto-back="true" :placeholder="true" :safe-area-inset-top="true"></up-navbar>
 
     <scroll-view class="content" scroll-y>
       <view class="menu-group">
@@ -28,12 +20,8 @@
       <view class="menu-group">
         <view class="menu-item">
           <text class="menu-item__label">自动检测更新</text>
-          <up-switch
-            v-model="autoUpdate"
-            :active-color="THEME_GREEN"
-            size="22"
-            @change="onAutoUpdateChange"
-          ></up-switch>
+          <up-switch v-model="autoUpdate" :active-color="THEME_GREEN" size="22"
+            @change="onAutoUpdateChange"></up-switch>
         </view>
         <view class="menu-item menu-item--multi menu-item--last">
           <view class="menu-item__main">
@@ -42,12 +30,8 @@
               关闭后仅使用基本功能，无法看到个性化推荐内容
             </text>
           </view>
-          <up-switch
-            v-model="personalized"
-            :active-color="THEME_GREEN"
-            size="22"
-            @change="onPersonalizedChange"
-          ></up-switch>
+          <up-switch v-model="personalized" :active-color="THEME_GREEN" size="22"
+            @change="onPersonalizedChange"></up-switch>
         </view>
       </view>
 
@@ -58,7 +42,7 @@
           <text class="menu-item__label">隐私政策</text>
           <up-icon name="arrow-right" color="#ccc" size="16"></up-icon>
         </view>
-        <view class="menu-item" @click="onNavigate('agreement')">
+        <view class="menu-item" @click="onNavigate('service')">
           <text class="menu-item__label">服务协议</text>
           <up-icon name="arrow-right" color="#ccc" size="16"></up-icon>
         </view>
@@ -117,13 +101,8 @@ export default {
         uni.navigateTo({ url: '/pages/mine/account' })
         return
       }
-      if (key === 'privacy' || key === 'agreement') {
-        const type = key === 'agreement' ? 'service' : 'privacy'
-        uni.navigateTo({ url: `/pages/mine/privacy?type=${type}` })
-        return
-      }
-      if (key === 'about') {
-        uni.navigateTo({ url: '/pages/mine/about' })
+      if (key === 'privacy' || key === 'service' || key === 'about') {
+        uni.navigateTo({ url: `/pages/mine/privacy?type=${key}` })
         return
       }
       const labels = {
@@ -139,7 +118,7 @@ export default {
         success: (res) => {
           if (res.confirm) {
             // TODO: 对接退出登录接口，清除 token
-            uni.removeStorageSync('user_token')
+            uni.clearStorageSync()
             uni.$u.toast('已退出登录')
             setTimeout(() => {
               uni.navigateTo({ url: '/pages/user/login' })

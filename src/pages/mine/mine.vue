@@ -17,8 +17,8 @@
           <up-icon name="account-fill" color="#ccc" size="48"></up-icon>
         </view>
         <view class="user-info">
-          <text class="user-info__phone">{{ user.phone }}</text>
-          <text class="user-info__sub">{{ user.phone }}</text>
+          <text class="user-info__phone">{{ user.mobile }}</text>
+          <!-- <text class="user-info__sub">{{ user.phone }}</text> -->
         </view>
       </view>
 
@@ -57,14 +57,12 @@
 
 <script>
 import { THEME_GREEN } from '@/common/theme.js'
-
+import { getUserInfo } from '@/api/user'
 export default {
   data() {
     return {
       THEME_GREEN,
-      user: {
-        phone: '15070005007',
-      },
+      user: {},
       tools: [
         { key: 'service', label: '联系客服', icon: 'server-fill' },
         { key: 'feedback', label: '意见与建议', icon: 'email-fill' },
@@ -72,7 +70,17 @@ export default {
       ],
     }
   },
+  onShow() {
+    this.user = uni.getStorageSync('userInfo')
+    this.loadUserInfo()
+  },
   methods: {
+    loadUserInfo() {
+      getUserInfo().then(res => {
+        this.user = res
+        uni.setStorageSync('userInfo', res)
+      })
+    },
     onOrder() {
       uni.navigateTo({
         url: '/pages/order/recharge-order',
@@ -81,6 +89,10 @@ export default {
     onTool(tool) {
       if (tool.key === 'setting') {
         uni.navigateTo({ url: '/pages/mine/setting' })
+        return
+      }
+      if (tool.key === 'feedback') {
+        uni.navigateTo({ url: '/pages/mine/feedback' })
         return
       }
       uni.$u.toast(tool.label)

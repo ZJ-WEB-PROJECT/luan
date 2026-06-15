@@ -5,7 +5,7 @@
 
     <view class="form">
       <view class="form-field">
-        <input v-model="phone" class="form-field__input" type="number" maxlength="11" placeholder="手机号"
+        <input v-model="mobile" class="form-field__input" type="number" maxlength="11" placeholder="手机号"
           placeholder-class="form-field__placeholder" />
       </view>
 
@@ -33,14 +33,14 @@
 </template>
 
 <script>
-import { register, sendRegisterCode } from '@/api/user'
+import { register, sendCode } from '@/api/user'
 import { THEME_GREEN } from '@/common/theme.js'
 
 export default {
   data() {
     return {
       THEME_GREEN,
-      phone: '',
+      mobile: '',
       code: '',
       password: '',
       codeCountdown: 0,
@@ -59,12 +59,12 @@ export default {
     },
     async onSendCode() {
       if (this.codeCountdown > 0) return
-      if (!/^1\d{10}$/.test(this.phone)) {
+      if (!/^1\d{10}$/.test(this.mobile)) {
         uni.$u.toast('请输入正确手机号')
         return
       }
       try {
-        await sendRegisterCode(this.phone)
+        await sendCode({ mobile: this.mobile, scene: 'register' })
         uni.$u.toast('验证码已发送')
         this.codeCountdown = 60
         this.codeTimer = setInterval(() => {
@@ -76,7 +76,7 @@ export default {
       }
     },
     async onRegister() {
-      if (!/^1\d{10}$/.test(this.phone)) {
+      if (!/^1\d{10}$/.test(this.mobile)) {
         uni.$u.toast('请输入正确手机号')
         return
       }
@@ -94,7 +94,7 @@ export default {
       }
       try {
         await register({
-          phone: this.phone,
+          mobile: this.mobile,
           code: this.code.trim(),
           password: this.password.trim(),
         })

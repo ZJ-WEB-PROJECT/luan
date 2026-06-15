@@ -1,39 +1,19 @@
 <template>
   <view class="page">
-    <up-navbar
-      title="告警设置"
-      :bg-color="THEME_GREEN"
-      title-color="#fff"
-      left-icon="arrow-left"
-      left-icon-color="#fff"
-      :auto-back="true"
-      :placeholder="true"
-      :safe-area-inset-top="true"
-    ></up-navbar>
+    <up-navbar title="告警设置" :bg-color="THEME_GREEN" title-color="#fff" left-icon="arrow-left" left-icon-color="#fff"
+      :auto-back="true" :placeholder="true" :safe-area-inset-top="true"></up-navbar>
 
     <scroll-view class="content" scroll-y>
-      <view
-        v-for="group in settingGroups"
-        :key="group.key"
-        class="group"
-      >
+      <view v-for="group in settingGroups" :key="group.key" class="group">
         <view class="group__header">
           <text>{{ group.title }}</text>
         </view>
         <view class="group__body">
-          <view
-            v-for="(item, index) in group.items"
-            :key="item.key"
-            class="setting-row"
-            :class="{ 'setting-row--last': index === group.items.length - 1 }"
-          >
+          <view v-for="(item, index) in group.items" :key="item.key" class="setting-row"
+            :class="{ 'setting-row--last': index === group.items.length - 1 }">
             <text class="setting-row__label">{{ item.label }}</text>
-            <up-switch
-              v-model="settings[item.key]"
-              :active-color="THEME_GREEN"
-              size="22"
-              @change="onSwitchChange(item.key, $event)"
-            ></up-switch>
+            <up-switch v-model="settings[item.key]" :active-color="THEME_GREEN" size="22"
+              @change="onSwitchChange(item.key, $event)"></up-switch>
           </view>
         </view>
       </view>
@@ -43,7 +23,7 @@
 
 <script>
 import { THEME_GREEN } from '@/common/theme.js'
-
+import { getDeviceConfig } from '@/api/device'
 function createDefaultSettings() {
   return {
     wechatPush: false,
@@ -91,21 +71,16 @@ export default {
       ],
     }
   },
-  onLoad(options) {
-    if (options.deviceId) {
-      this.deviceId = options.deviceId
-    }
+  onLoad() {
+    this.deviceId = uni.getStorageSync('currentDevice').sn
     this.loadSettings()
   },
   methods: {
-    loadSettings() {
+    async loadSettings() {
       // TODO: 对接设备告警设置查询接口
       if (!this.deviceId) return
-      const cacheKey = `alarm_settings_${this.deviceId}`
-      const cached = uni.getStorageSync(cacheKey)
-      if (cached && typeof cached === 'object') {
-        this.settings = { ...createDefaultSettings(), ...cached }
-      }
+      const res = await getDeviceConfig({ sn: this.deviceId, type: "e_config_all" })
+      console.log('res', res)
     },
     saveSettings() {
       if (!this.deviceId) return

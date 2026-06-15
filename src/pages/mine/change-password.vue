@@ -52,7 +52,7 @@
 
 <script>
 import { THEME_GREEN } from '@/common/theme.js'
-
+import { changePassword } from '@/api/user'
 export default {
   data() {
     return {
@@ -63,7 +63,7 @@ export default {
     }
   },
   methods: {
-    onSave() {
+    async onSave() {
       if (!this.oldPassword.trim()) {
         uni.$u.toast('请输入旧密码')
         return
@@ -80,7 +80,10 @@ export default {
         uni.$u.toast('两次新密码不一致')
         return
       }
-      // TODO: 对接修改设备密码接口
+      const res = await changePassword({
+        oldPassword: this.oldPassword,
+        newPassword: this.newPassword,
+      })
       uni.$u.toast('密码修改成功')
       setTimeout(() => uni.navigateBack(), 400)
     },

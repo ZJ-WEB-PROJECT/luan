@@ -54,6 +54,7 @@
 
 <script>
 import { THEME_GREEN } from '@/common/theme.js'
+import { getDeviceList, normalizeDeviceList } from '@/api/device'
 
 const STORAGE_KEY = 'currentDevice'
 
@@ -62,26 +63,7 @@ export default {
     return {
       THEME_GREEN,
       selectedSn: '',
-      deviceList: [
-        {
-          name: '直播间展示 533',
-          sn: '14166347553',
-          status: '离线',
-          statusType: 'offline',
-        },
-        {
-          name: '直播间演示 555',
-          sn: '15610416555',
-          status: '静止',
-          statusType: 'static',
-        },
-        {
-          name: '直播间演示 555',
-          sn: '15610416556',
-          status: '离线',
-          statusType: 'offline',
-        },
-      ],
+      deviceList: [],
     }
   },
   onLoad() {
@@ -91,13 +73,28 @@ export default {
     } else if (this.deviceList.length) {
       this.selectedSn = this.deviceList[0].sn
     }
+    this.getDeviceList()
   },
   methods: {
+    async getDeviceList() {
+      try {
+        const res = await getDeviceList()
+        const list = normalizeDeviceList(res)
+        if (list.length) {
+          this.deviceList = list
+          if (!this.selectedSn) {
+            this.selectedSn = list[0].sn
+          }
+        }
+      } catch (e) {
+        console.error('[select] getDeviceList failed:', e)
+      }
+    },
     goHome() {
       uni.switchTab({ url: '/pages/index/index' })
     },
     onHowAdd() {
-      uni.$u.toast('请联系客服添加设备')
+      uni.navigateTo({ url: '/pages/device/bind' })
     },
     onSelectCard(item) {
       this.selectedSn = item.sn
@@ -111,7 +108,7 @@ export default {
       })
     },
     onAddDevice() {
-      uni.$u.toast('新增设备功能开发中')
+      uni.navigateTo({ url: '/pages/device/bind' })
     },
   },
 }

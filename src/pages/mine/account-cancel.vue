@@ -35,7 +35,6 @@
 
 <script>
 import { THEME_GREEN } from '@/common/theme.js'
-
 export default {
   data() {
     return {
@@ -59,12 +58,7 @@ export default {
         confirmText: '继续注销',
         success: (res) => {
           if (res.confirm) {
-            // TODO: 对接账号注销接口
-            uni.removeStorageSync('user_token')
-            uni.$u.toast('注销申请已提交')
-            setTimeout(() => {
-              uni.switchTab({ url: '/pages/location/location' })
-            }, 500)
+            uni.navigateTo({ url: '/pages/mine/account-cancel-verify' })
           }
         },
       })

@@ -64,7 +64,6 @@ export function request(options = {}) {
     auth = true,
     ...rest
   } = options
-
   if (!url) {
     return Promise.reject(new Error('请求地址不能为空'))
   }
@@ -79,7 +78,7 @@ export function request(options = {}) {
     ...header,
   }
   if (auth && token) {
-    reqHeader.Authorization = reqHeader.Authorization || `Bearer ${token}`
+    reqHeader.Authorization = reqHeader.Authorization || `${token}`
   }
 
   return new Promise((resolve, reject) => {
@@ -128,7 +127,108 @@ export function request(options = {}) {
         resolve(body)
       },
       fail: (err) => {
-        const msg = err?.errMsg || '网络异常，请稍后重试'
+        let msg = err?.errMsg || '网络异常，请稍后重试'
+        if (/request:fail|cors|cross/i.test(msg)) {
+          msg = import.meta.env.DEV
+            ? '请求失败：开发环境请确认 Vite 代理 /api 已配置并已重启 dev:h5'
+            : '请求失败：服务端未允许跨域访问，请配置 CORS 或使用同源代理'
+        }
+        if (showError) toast(msg)
+        reject(new Error(msg))
+      },
+      complete: () => {
+        if (loading) uni.hideLoading()
+      },
+    })
+  })
+}
+
+/**
+ * 上传文件（multipart/form-data）
+ * @param {Object} options
+ * @param {string} options.url
+ * @param {string} options.filePath - 本地临时路径
+ * @param {string} [options.name='file'] - 表单字段名
+ * @param {Object} [options.formData]
+ */
+export function uploadFile(options = {}) {
+  const {
+    url,
+    filePath,
+    name = 'file',
+    formData = {},
+    loading = false,
+    showError = true,
+    auth = true,
+  } = options
+
+  if (!url || !filePath) {
+    return Promise.reject(new Error('上传参数不完整'))
+  }
+
+  if (loading) {
+    uni.showLoading({ title: '上传中', mask: true })
+  }
+
+  const token = getToken()
+  const header = {}
+  if (auth && token) {
+    header.Authorization = `${token}`
+  }
+
+  return new Promise((resolve, reject) => {
+    uni.uploadFile({
+      url: buildUrl(url),
+      filePath,
+      name,
+      formData,
+      header,
+      success: (res) => {
+        const { statusCode } = res
+        let body = res.data
+        if (typeof body === 'string') {
+          try {
+            body = JSON.parse(body)
+          } catch {
+            body = body.trim()
+          }
+        }
+
+        if (statusCode === 401) {
+          handleUnauthorized()
+          const err = new Error('登录已过期，请重新登录')
+          if (showError) toast(err.message)
+          reject(err)
+          return
+        }
+
+        if (statusCode < 200 || statusCode >= 300) {
+          const err = new Error(body?.msg || body?.message || `上传失败(${statusCode})`)
+          if (showError) toast(err.message)
+          reject(err)
+          return
+        }
+
+        if (body && typeof body === 'object' && ('code' in body || 'success' in body)) {
+          const ok =
+            body.code === 0 ||
+            body.code === 200 ||
+            body.success === true ||
+            body.status === 'success'
+          if (ok) {
+            resolve(body.data !== undefined ? body.data : body)
+            return
+          }
+          const err = new Error(body.msg || body.message || '上传失败')
+          if (showError) toast(err.message)
+          reject(err)
+          return
+        }
+
+        resolve(body)
+      },
+      fail: (err) => {
+        const msg = err?.errMsg || '上传失败，请稍后重试'
         if (showError) toast(msg)
         reject(new Error(msg))
       },
@@ -141,6 +241,7 @@ export function request(options = {}) {
 
 export const http = {
   request,
+  uploadFile,
   get(url, data, options) {
     return request({ url, method: 'GET', data, ...options })
   },

@@ -6,8 +6,9 @@
 
     <!-- #ifndef H5 -->
     <map :id="mapNativeId" class="amap-view__canvas" :latitude="centerLat" :longitude="centerLng" :scale="scale"
-      :markers="nativeMarkers" :show-location="showMyLocation || nativeShowLocation" :enable-traffic="trafficOn"
-      :enable-satellite="satelliteOn" enable-zoom enable-scroll enable-rotate @updated="onMapUpdated" />
+      :markers="nativeMarkers" :polyline="nativePolylines" :circles="nativeCircles" :polygons="nativePolygons"
+      :show-location="showMyLocation || nativeShowLocation" :enable-traffic="trafficOn" :enable-satellite="satelliteOn"
+      enable-zoom enable-scroll enable-rotate @tap="onNativeMapTap" @updated="onMapUpdated" />
     <!-- #endif -->
 
     <view v-if="showTools" class="amap-view__tools">
@@ -42,11 +43,18 @@ export default {
     longitude: { type: Number, default: 0 },
     scale: { type: Number, default: DEFAULT_MAP_SCALE },
     markerTitle: { type: String, default: '设备位置' },
+    markerIcon: { type: String, default: '' },
+    markerWidth: { type: Number, default: 28 },
+    markerHeight: { type: Number, default: 36 },
     address: { type: String, default: '' },
     showMyLocation: { type: Boolean, default: false },
     showTools: { type: Boolean, default: true },
+    markers: { type: Array, default: () => [] },
+    polyline: { type: Array, default: () => [] },
+    circles: { type: Array, default: () => [] },
+    polygons: { type: Array, default: () => [] },
   },
-  emits: ['ready', 'error', 'located'],
+  emits: ['ready', 'error', 'located', 'tap'],
   data() {
     const uid = `amap_${Date.now()}_${Math.floor(Math.random() * 10000)}`
     return {
@@ -64,6 +72,10 @@ export default {
       amapMarker: null,
       trafficLayer: null,
       myLocation: null,
+      h5TrackPolyline: null,
+      h5ExtraMarkers: [],
+      h5Circles: [],
+      h5Polygons: [],
     }
   },
   computed: {
@@ -71,15 +83,15 @@ export default {
       return MAP_TOOLS
     },
     nativeMarkers() {
-      if (!this.innerLat || !this.innerLng) return []
-      return [
-        {
+      const list = []
+      if (this.innerLat && this.innerLng) {
+        const marker = {
           id: 1,
           latitude: this.innerLat,
           longitude: this.innerLng,
           title: this.markerTitle,
-          width: 28,
-          height: 36,
+          width: this.markerWidth,
+          height: this.markerHeight,
           anchor: { x: 0.5, y: 1 },
           callout: {
             content: this.markerTitle,
@@ -88,8 +100,41 @@ export default {
             borderRadius: 6,
             fontSize: 12,
           },
-        },
-      ]
+        }
+        if (this.markerIcon) {
+          marker.iconPath = this.markerIcon
+        }
+        list.push(marker)
+      }
+      if (this.markers?.length) {
+        const ext = this.markers.map((marker, idx) => ({
+          ...marker,
+          id: marker.id ?? idx + 100,
+        }))
+        list.push(...ext)
+      }
+      return list
+    },
+    nativePolylines() {
+      return this.polyline || []
+    },
+    nativeCircles() {
+      return (this.circles || []).map((item) => ({
+        latitude: item.latitude,
+        longitude: item.longitude,
+        radius: item.radius,
+        color: item.color || '#e74c3c99',
+        fillColor: item.fillColor || '#e74c3c33',
+        strokeWidth: item.strokeWidth || 2,
+      }))
+    },
+    nativePolygons() {
+      return (this.polygons || []).map((item) => ({
+        points: item.points || [],
+        strokeWidth: item.strokeWidth || 2,
+        strokeColor: item.strokeColor || '#e74c3c99',
+        fillColor: item.fillColor || '#e74c3c33',
+      })).filter((item) => item.points.length >= 3)
     },
   },
   watch: {
@@ -116,6 +161,30 @@ export default {
     scale() {
       this.syncCenter()
     },
+    markers: {
+      deep: true,
+      handler() {
+        this.syncH5TrackOverlays()
+      },
+    },
+    polyline: {
+      deep: true,
+      handler() {
+        this.syncH5TrackOverlays()
+      },
+    },
+    circles: {
+      deep: true,
+      handler() {
+        this.syncH5FenceOverlays()
+      },
+    },
+    polygons: {
+      deep: true,
+      handler() {
+        this.syncH5FenceOverlays()
+      },
+    },
   },
   mounted() {
     // #ifdef H5
@@ -128,6 +197,7 @@ export default {
   beforeUnmount() {
     // #ifdef H5
     if (this.mapInstance) {
+      this.mapInstance.off('click', this.onH5MapClick)
       this.mapInstance.destroy()
       this.mapInstance = null
     }
@@ -216,7 +286,17 @@ export default {
           title: this.markerTitle,
           anchor: 'bottom-center',
         })
+        if (this.markerIcon) {
+          this.amapMarker.setIcon(new AMap.Icon({
+            image: this.markerIcon,
+            size: new AMap.Size(this.markerWidth, this.markerHeight),
+            imageSize: new AMap.Size(this.markerWidth, this.markerHeight),
+          }))
+        }
         this.mapInstance.add(this.amapMarker)
+        this.mapInstance.on('click', this.onH5MapClick)
+        this.syncH5TrackOverlays()
+        this.syncH5FenceOverlays()
         this.loadError = ''
         this.$emit('ready', { platform: 'h5', map: this.mapInstance })
       } catch (e) {
@@ -224,6 +304,112 @@ export default {
         this.$emit('error', e)
         console.error('[amap-view] init failed:', e)
       }
+      // #endif
+    },
+
+    syncH5TrackOverlays() {
+      // #ifdef H5
+      if (!this.mapInstance || !window.AMap) return
+
+      if (this.h5TrackPolyline) {
+        this.mapInstance.remove(this.h5TrackPolyline)
+        this.h5TrackPolyline = null
+      }
+      if (this.h5ExtraMarkers?.length) {
+        this.mapInstance.remove(this.h5ExtraMarkers)
+        this.h5ExtraMarkers = []
+      }
+
+      const firstPolyline = this.polyline?.[0]
+      if (firstPolyline?.points?.length) {
+        const path = firstPolyline.points.map((point) => [point.longitude, point.latitude])
+        this.h5TrackPolyline = new window.AMap.Polyline({
+          path,
+          strokeColor: firstPolyline.color || '#3dba6e',
+          strokeWeight: firstPolyline.width || 6,
+          strokeStyle: firstPolyline.dottedLine ? 'dashed' : 'solid',
+          showDir: !!firstPolyline.arrowLine,
+        })
+        this.mapInstance.add(this.h5TrackPolyline)
+      }
+
+      if (this.markers?.length) {
+        this.h5ExtraMarkers = this.markers
+          .filter((marker) => marker.latitude && marker.longitude)
+          .map((marker) => new window.AMap.Marker({
+            position: [marker.longitude, marker.latitude],
+            title: marker.title || '',
+            anchor: 'bottom-center',
+            label: marker.callout?.content
+              ? {
+                content: `<div style="padding:2px 6px;background:rgba(61,186,110,.92);color:#fff;border-radius:10px;font-size:12px;">${marker.callout.content}</div>`,
+                direction: 'top',
+              }
+              : undefined,
+          }))
+        if (this.h5ExtraMarkers.length) {
+          this.mapInstance.add(this.h5ExtraMarkers)
+        }
+      }
+      // #endif
+    },
+
+    syncH5FenceOverlays() {
+      // #ifdef H5
+      if (!this.mapInstance || !window.AMap) return
+
+      if (this.h5Circles?.length) {
+        this.mapInstance.remove(this.h5Circles)
+        this.h5Circles = []
+      }
+      if (this.h5Polygons?.length) {
+        this.mapInstance.remove(this.h5Polygons)
+        this.h5Polygons = []
+      }
+
+      this.h5Circles = (this.circles || [])
+        .filter((item) => item.latitude && item.longitude && item.radius)
+        .map((item) => new window.AMap.Circle({
+          center: [item.longitude, item.latitude],
+          radius: item.radius,
+          strokeColor: item.color || '#e74c3c',
+          strokeOpacity: 0.8,
+          strokeWeight: item.strokeWidth || 2,
+          fillColor: item.fillColor || '#e74c3c',
+          fillOpacity: 0.25,
+        }))
+      if (this.h5Circles.length) {
+        this.mapInstance.add(this.h5Circles)
+      }
+
+      this.h5Polygons = (this.polygons || [])
+        .filter((item) => item.points?.length >= 3)
+        .map((item) => new window.AMap.Polygon({
+          path: item.points.map((point) => [point.longitude, point.latitude]),
+          strokeColor: item.strokeColor || '#e74c3c',
+          strokeOpacity: 0.8,
+          strokeWeight: item.strokeWidth || 2,
+          fillColor: item.fillColor || '#e74c3c',
+          fillOpacity: 0.25,
+        }))
+      if (this.h5Polygons.length) {
+        this.mapInstance.add(this.h5Polygons)
+      }
+      // #endif
+    },
+
+    onNativeMapTap(e) {
+      const { latitude, longitude } = e?.detail || {}
+      if (!latitude || !longitude) return
+      this.$emit('tap', { latitude, longitude })
+    },
+
+    onH5MapClick(e) {
+      // #ifdef H5
+      const lat = e?.lnglat?.lat
+      const lng = e?.lnglat?.lng
+      if (lat == null || lng == null) return
+      this.$emit('tap', { latitude: lat, longitude: lng })
       // #endif
     },
 

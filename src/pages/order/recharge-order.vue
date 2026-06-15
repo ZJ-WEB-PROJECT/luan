@@ -32,12 +32,12 @@
 
         <view class="order-card__body">
           <text class="order-card__name">{{ item.productName }}</text>
-          <text class="order-card__price">¥{{ item.price }}</text>
+          <text class="order-card__price">¥{{ item.payAmountCent }}</text>
         </view>
 
         <view class="order-card__foot">
           <text class="order-card__time">
-            {{ item.status === 'paid' ? '支付时间：' : '创建时间：' }}{{ item.time }}
+            {{ item.status === 'paid' ? '支付时间：' : '创建时间：' }}{{ item.createTime }}
           </text>
           <up-icon name="arrow-right" color="#ccc" size="14"></up-icon>
         </view>
@@ -56,7 +56,7 @@
 
 <script>
 import { THEME_GREEN } from '@/common/theme.js'
-
+import { getOrderList } from '@/api/order'
 export default {
   data() {
     return {
@@ -109,8 +109,9 @@ export default {
     this.loadOrders()
   },
   methods: {
-    loadOrders() {
-      // TODO: 对接充值订单列表接口
+    async loadOrders() {
+      const res = await getOrderList()
+      this.orderList = res
     },
     onOrderDetail(item) {
       uni.$u.toast(`订单 ${item.orderNo}`)

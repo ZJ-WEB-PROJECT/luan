@@ -14,29 +14,29 @@
             <text class="status-card__power-label">远程开关机</text>
           </view>
         </view>
-        <text class="status-card__time">更新时间: {{ updateTime }}</text>
+        <text class="status-card__time">更新时间: {{ $u.timeFormat(deviceInfo.last_com_time, 'yyyy-mm-dd hh:MM:ss')
+          }}</text>
         <view class="status-card__signals">
           <view v-for="sig in signals" :key="sig.key" class="signal-item">
             <view class="signal-item__icon">
               <view v-if="sig.key === 'gsm'" class="signal-bars">
                 <view v-for="n in 4" :key="n" class="signal-bars__bar"></view>
               </view>
-              <image
-                v-else-if="sig.key === 'satellite'"
-                class="signal-satellite__image"
-                :src="satelliteImg"
-                mode="widthFix"
-              ></image>
-              <view v-else class="signal-battery">
-                <view class="signal-battery__body">
-                  <view class="signal-battery__level"></view>
+              <image v-else-if="sig.key === 'satellite'" class="signal-satellite__image" :src="satelliteImg"
+                mode="widthFix"></image>
+              <view class="device-battery" v-else>
+                <view class="battery-icon" :class="{ 'battery-icon--low': deviceInfo.power <= 20 }">
+                  <view class="battery-icon__body">
+                    <view class="battery-icon__level" :style="{ width: deviceInfo.power + '%' }">
+                    </view>
+                  </view>
+                  <view class="battery-icon__head"></view>
                 </view>
-                <view class="signal-battery__head"></view>
               </view>
             </view>
             <text class="signal-item__name">{{ sig.name }}</text>
-            <view class="signal-badge" :class="'signal-badge--' + sig.badgeType">
-              <text>{{ sig.value }}</text>
+            <view class="signal-badge" :class="'signal-badge--' + (deviceInfo.power <= 20 ? 'danger' : 'success')">
+              <text>{{ deviceInfo.power }}%</text>
             </view>
           </view>
         </view>
@@ -61,14 +61,14 @@
 <script>
 import { THEME_GREEN } from '@/common/theme.js'
 import { staticUrl } from '@/common/assets.js'
-
+import { getDeviceDetail, simRemoteSwitch } from '@/api/device'
 export default {
   data() {
     return {
       THEME_GREEN,
       satelliteImg: staticUrl('/static/satellite.png'),
-      deviceId: '15070055007',
-      updateTime: '2026/05/21 17:47:18',
+      deviceId: '',
+      deviceInfo: {},
       remotePowerOn: true,
       showShareModal: false,
       signals: [
@@ -92,15 +92,16 @@ export default {
     }
   },
   onLoad(options) {
-    if (options.deviceId) {
-      this.deviceId = options.deviceId
-    }
-    if (options.updateTime) {
-      this.updateTime = options.updateTime
-    }
+    this.deviceId = uni.getStorageSync('currentDevice').sn
+    this.getDeviceInfo()
   },
   methods: {
-    onPowerChange(val) {
+    async getDeviceInfo() {
+      const res = await getDeviceDetail({ sn: this.deviceId })
+      this.deviceInfo = res
+    },
+    async onPowerChange(val) {
+      await simRemoteSwitch({ sn: this.deviceId, state: val ? 'on' : 'off' })
       uni.$u.toast(val ? '远程开机' : '远程关机')
     },
     onShareOrder(deviceId) {
@@ -110,55 +111,54 @@ export default {
       })
     },
     onMenuClick(item) {
-      const id = this.deviceId
       switch (item.key) {
         case 'location':
           uni.switchTab({ url: '/pages/location/location' })
           break
         case 'service':
           uni.navigateTo({
-            url: `/pages/service/service?deviceId=${id}&phone=${id}`,
+            url: `/pages/service/service`,
           })
           break
         case 'sim':
           uni.navigateTo({
-            url: `/pages/sim/sim?deviceId=${id}`,
+            url: `/pages/sim/sim`,
           })
           break
         case 'alarm':
           uni.navigateTo({
-            url: `/pages/alarm/alarm?deviceId=${id}`,
+            url: `/pages/alarm/alarm`,
           })
           break
         case 'fence':
           uni.navigateTo({
-            url: `/pages/fence/fence?deviceId=${id}`,
+            url: `/pages/fence/fence`,
           })
           break
         case 'track':
-          uni.navigateTo({ url: `/pages/track/track?deviceId=${id}` })
+          uni.navigateTo({ url: `/pages/track/track` })
           break
         case 'share':
           this.showShareModal = true
           break
         case 'report':
           uni.navigateTo({
-            url: `/pages/report/report?deviceId=${id}`,
+            url: `/pages/report/report`,
           })
           break
         case 'remote':
           uni.navigateTo({
-            url: `/pages/remote/remote?deviceId=${id}`,
+            url: `/pages/remote/remote`,
           })
           break
         case 'workmode':
           uni.navigateTo({
-            url: `/pages/workmode/workmode?deviceId=${id}`,
+            url: `/pages/workmode/workmode`,
           })
           break
         case 'info':
           uni.navigateTo({
-            url: `/pages/device/info?deviceId=${id}&updateTime=${encodeURIComponent(this.updateTime)}`,
+            url: `/pages/device/info`,
           })
           break
         default:
@@ -379,5 +379,55 @@ export default {
   font-size: 26rpx;
   color: #333;
   text-align: center;
+}
+
+
+.device-battery {
+  display: flex;
+  align-items: center;
+  gap: 6rpx;
+}
+
+.battery-icon {
+  display: flex;
+  align-items: center;
+}
+
+.battery-icon__body {
+  width: 36rpx;
+  height: 18rpx;
+  border: 2rpx solid #999;
+  border-radius: 4rpx;
+  padding: 2rpx;
+  box-sizing: border-box;
+}
+
+.battery-icon__level {
+  height: 100%;
+  background: #3dba6e;
+  border-radius: 2rpx;
+  min-width: 0;
+  min-width: 5rpx;
+}
+
+.battery-icon__head {
+  width: 4rpx;
+  height: 10rpx;
+  background: #999;
+  border-radius: 0 2rpx 2rpx 0;
+}
+
+.battery-icon--low .battery-icon__level {
+  background: #e74c3c;
+}
+
+.device-battery__text {
+  font-size: 28rpx;
+  color: #666;
+  font-weight: 600;
+}
+
+.device-battery__text--low {
+  color: #e74c3c;
 }
 </style>

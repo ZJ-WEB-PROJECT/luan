@@ -1,15 +1,7 @@
 <template>
   <view class="page">
-    <up-navbar
-      :title="navTitle"
-      :bg-color="THEME_GREEN"
-      title-color="#fff"
-      left-icon="arrow-left"
-      left-icon-color="#fff"
-      :auto-back="true"
-      :placeholder="true"
-      :safe-area-inset-top="true"
-    ></up-navbar>
+    <up-navbar :title="navTitle" :bg-color="THEME_GREEN" title-color="#fff" left-icon="arrow-left"
+      left-icon-color="#fff" :auto-back="true" :placeholder="true" :safe-area-inset-top="true"></up-navbar>
 
     <view v-if="loading" class="loading-wrap">
       <up-loading-icon mode="circle" color="#3dba6e"></up-loading-icon>
@@ -18,15 +10,10 @@
 
     <scroll-view v-else class="content" scroll-y>
       <view class="doc">
-        <text v-if="docTitle" class="doc__title">{{ docTitle }}</text>
         <text v-if="updateTime" class="doc__meta">更新日期：{{ updateTime }}</text>
 
         <!-- 后端返回 HTML 时直接渲染 -->
-        <rich-text
-          v-if="renderMode === 'html' && htmlContent"
-          class="doc__rich"
-          :nodes="htmlContent"
-        ></rich-text>
+        <rich-text v-if="htmlContent" class="doc__rich" :nodes="htmlContent"></rich-text>
 
         <!-- 结构化段落（接口 sections 或本地 mock） -->
         <template v-else>
@@ -34,11 +21,7 @@
             <text v-if="block.type === 'h2'" class="doc__section">{{ block.text }}</text>
             <text v-else-if="block.type === 'p'" class="doc__p">{{ block.text }}</text>
             <view v-else-if="block.type === 'ol'" class="doc__ol">
-              <view
-                v-for="(item, i) in block.items"
-                :key="i"
-                class="doc__item"
-              >
+              <view v-for="(item, i) in block.items" :key="i" class="doc__item">
                 <text class="doc__item-no">{{ i + 1 }}</text>
                 <text class="doc__item-text">{{ item }}</text>
               </view>
@@ -52,15 +35,13 @@
 
 <script>
 import { THEME_GREEN } from '@/common/theme.js'
-import { fetchProtocol, PROTOCOL_TYPE } from '@/api/protocol.js'
-
+import { contentConfig } from '@/api/user'
 export default {
   data() {
     return {
       THEME_GREEN,
-      protocolType: PROTOCOL_TYPE.PRIVACY,
+      protocolType: 'privacy',
       navTitle: '隐私政策',
-      docTitle: '',
       updateTime: '',
       htmlContent: '',
       sections: [],
@@ -69,29 +50,17 @@ export default {
     }
   },
   onLoad(options) {
-    if (options.type === PROTOCOL_TYPE.SERVICE) {
-      this.protocolType = PROTOCOL_TYPE.SERVICE
-    }
+    this.protocolType = options.type
     this.loadProtocol()
   },
   methods: {
     async loadProtocol() {
       this.loading = true
       try {
-        const data = await fetchProtocol(this.protocolType)
-        this.navTitle = data.navTitle || '协议'
-        this.docTitle = data.title || ''
+        const data = await contentConfig({ type: this.protocolType })
+        this.navTitle = data.title || '协议'
+        this.htmlContent = data.content || ''
         this.updateTime = data.updateTime || ''
-
-        if (data.html && String(data.html).trim()) {
-          this.renderMode = 'html'
-          this.htmlContent = data.html
-          this.sections = []
-        } else {
-          this.renderMode = 'sections'
-          this.htmlContent = ''
-          this.sections = data.sections || []
-        }
       } catch (e) {
         uni.$u.toast(e?.message || '加载失败')
       } finally {

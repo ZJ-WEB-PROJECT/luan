@@ -1,15 +1,7 @@
 <template>
   <view class="page">
-    <up-navbar
-      title="工作模式"
-      :bg-color="THEME_GREEN"
-      title-color="#fff"
-      left-icon="arrow-left"
-      left-icon-color="#fff"
-      :auto-back="true"
-      :placeholder="true"
-      :safe-area-inset-top="true"
-    ></up-navbar>
+    <up-navbar title="工作模式" :bg-color="THEME_GREEN" title-color="#fff" left-icon="arrow-left" left-icon-color="#fff"
+      :auto-back="true" :placeholder="true" :safe-area-inset-top="true"></up-navbar>
 
     <scroll-view class="content" scroll-y>
       <view class="section">
@@ -17,19 +9,9 @@
           <text>工作模式</text>
         </view>
         <view class="option-list">
-          <view
-            v-for="item in workModes"
-            :key="item.key"
-            class="option-item"
-            @click="workMode = item.key"
-          >
+          <view v-for="item in workModes" :key="item.key" class="option-item" @click="workMode = item.key">
             <view class="option-item__radio" :class="{ 'option-item__radio--active': workMode === item.key }">
-              <up-icon
-                v-if="workMode === item.key"
-                name="checkbox-mark"
-                color="#fff"
-                size="14"
-              ></up-icon>
+              <up-icon v-if="workMode === item.key" name="checkbox-mark" color="#fff" size="14"></up-icon>
             </view>
             <view class="option-item__body">
               <view class="option-item__title-row">
@@ -37,11 +19,8 @@
                 <text v-if="item.tag" class="option-item__tag">{{ item.tag }}</text>
               </view>
               <text class="option-item__desc">{{ item.desc }}</text>
-              <view
-                v-if="item.key === 'smart' && workMode === 'smart'"
-                class="time-row"
-                @click.stop="showTimePicker = true"
-              >
+              <view v-if="item.key === 'smart' && workMode === 'smart'" class="time-row"
+                @click.stop="showTimePicker = true">
                 <text class="time-row__label">选择定位时间</text>
                 <view class="time-row__value">
                   <text>{{ locateIntervalLabel }}</text>
@@ -58,22 +37,9 @@
           <text>定位优先级</text>
         </view>
         <view class="option-list">
-          <view
-            v-for="item in priorityModes"
-            :key="item.key"
-            class="option-item"
-            @click="priorityMode = item.key"
-          >
-            <view
-              class="option-item__radio"
-              :class="{ 'option-item__radio--active': priorityMode === item.key }"
-            >
-              <up-icon
-                v-if="priorityMode === item.key"
-                name="checkbox-mark"
-                color="#fff"
-                size="14"
-              ></up-icon>
+          <view v-for="item in priorityModes" :key="item.key" class="option-item" @click="priorityMode = item.key">
+            <view class="option-item__radio" :class="{ 'option-item__radio--active': priorityMode === item.key }">
+              <up-icon v-if="priorityMode === item.key" name="checkbox-mark" color="#fff" size="14"></up-icon>
             </view>
             <view class="option-item__body">
               <view class="option-item__title-row">
@@ -93,19 +59,14 @@
       </view>
     </view>
 
-    <up-action-sheet
-      :show="showTimePicker"
-      :actions="intervalActions"
-      title="选择定位时间"
-      @close="showTimePicker = false"
-      @select="onIntervalSelect"
-    ></up-action-sheet>
+    <up-action-sheet :show="showTimePicker" :actions="intervalActions" title="选择定位时间" @close="showTimePicker = false"
+      @select="onIntervalSelect"></up-action-sheet>
   </view>
 </template>
 
 <script>
 import { THEME_GREEN } from '@/common/theme.js'
-
+import { getLocationMode } from '@/api/device.js'
 const INTERVAL_OPTIONS = [
   { name: '半分钟', value: '30s' },
   { name: '1分钟', value: '1m' },
@@ -171,13 +132,17 @@ export default {
       return found ? found.name : '半分钟'
     },
   },
-  onLoad(options) {
-    if (options.deviceId) {
-      this.deviceId = options.deviceId
-      this.loadSaved()
-    }
+  onLoad() {
+    this.deviceId = uni.getStorageSync('currentDevice').sn
+    this.getLocationMode()
+    this.loadSaved()
+
   },
   methods: {
+    async getLocationMode() {
+      const res = await getLocationMode({ sn: this.deviceId })
+      console.log(res)
+    },
     storageKey() {
       return `workmode_${this.deviceId}`
     },
