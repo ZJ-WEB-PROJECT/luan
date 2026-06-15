@@ -3,7 +3,7 @@ import http from '@/common/request'
 
 /** 获取设备列表 */
 export function getDeviceList(data) {
-    return http.get('/f/la/members/devices', data, {
+    return http.get('/f/la/device/all', data, {
         loading: false,
         auth: true,
         header: {
@@ -14,7 +14,7 @@ export function getDeviceList(data) {
 
 /** 绑定设备 */
 export function bindDevice(data) {
-    return http.post('/f/la/members/devices/bind', data, {
+    return http.post('/f/la/device/bind', data, {
         loading: true,
         auth: true,
 
