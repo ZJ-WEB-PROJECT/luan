@@ -35,6 +35,6 @@ jobs:
           username: root
           port: 22
           key: ${{ secrets.LUAN_KEY }}
-          source: ./dist/build/h5/*
+          source: ./dist/*
           target: /www/wwwroot/luanjt.com/dist
           strip_components: 1
