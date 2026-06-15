@@ -22,19 +22,19 @@ jobs:
         run: npm install --force
 
       - name: Build project
-        run: npm run build
+        run: npm run build:h5
 
       # 验证构建输出
-      - name: Verify build
-        run: ls -l dist
+      - name: Verify build:h5
+        run: ls -l dist/build/h5
 
       - name: Deploy to server
         uses: appleboy/scp-action@master
         with:
-          host: 103.52.152.201
+          host: 159.75.50.242
           username: root
-          port: 17417
-          key: ${{ secrets.ABS_KEY }}
-          source: ./dist/*
-          target: /www/wwwroot/meecxxc.one/dist
+          port: 22
+          key: ${{ secrets.LUAN_KEY }}
+          source: ./dist/build/h5/*
+          target: /www/wwwroot/luanjt.com/dist
           strip_components: 1
