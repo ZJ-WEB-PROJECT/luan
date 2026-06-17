@@ -14,7 +14,7 @@ export function getDeviceList(data) {
 
 /** 绑定设备 */
 export function bindDevice(data) {
-    return http.post('/f/la/members/devices/bind', data, {
+    return http.post('/f/la/device/bind', data, {
         loading: true,
         auth: true,
 
