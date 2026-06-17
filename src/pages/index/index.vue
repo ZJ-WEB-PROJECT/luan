@@ -242,7 +242,8 @@ export default {
           return
         }
         const saved = uni.getStorageSync(STORAGE_KEY)
-        if (!saved.id) {
+        console.log('saved', saved)
+        if (!saved.sn) {
           uni.setStorageSync(STORAGE_KEY, list[0])
         }
         this.loadCurrentDevice()

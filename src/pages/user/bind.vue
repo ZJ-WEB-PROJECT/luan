@@ -66,11 +66,10 @@ export default {
   onLoad() {
     this.wechatAuthInfo = uni.getStorageSync('wechatAuthInfo') || null
     this.wechatLoginResult = uni.getStorageSync('wechatLoginResult') || null
-    console.log('this.wechatAuthInfo', this.wechatAuthInfo)
-    if (!this.wechatAuthInfo?.code) {
-      uni.$u.toast('微信授权信息已失效，请重新登录')
-      setTimeout(() => this.goLogin(), 800)
-    }
+    // if (!this.wechatAuthInfo?.code) {
+    //   uni.$u.toast('微信授权信息已失效，请重新登录')
+    //   setTimeout(() => this.goLogin(), 800)
+    // }
   },
   onUnload() {
     this.clearCodeTimer()
