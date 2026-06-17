@@ -3,7 +3,7 @@ import http from '@/common/request'
 
 /** 获取设备列表 */
 export function getDeviceList(data) {
-    return http.get('/f/la/members/devices', data, {
+    return http.get('/f/la/device/all', data, {
         loading: false,
         auth: true,
         header: {
