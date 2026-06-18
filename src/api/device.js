@@ -1,82 +1,223 @@
 import dayjs from 'dayjs'
 import http from '@/common/request'
+import {
+  isFamilyDeviceApiMode,
+  resolveDeviceEndpoint,
+  DEVICE_API_MODE,
+} from '@/common/device-api-mode'
+import {
+  resolveDeviceId,
+  resolveDevicePath,
+  unixToDateTime,
+  parsePageCursor,
+  unwrapSpringPage,
+  wrapCursorPageResponse,
+  mapStopToIotdoc,
+  mapTripToIotdoc,
+  mapTrackPointToIotdoc,
+  mapOpLogToIotdoc,
+  mapJtFenceToIotdoc,
+  buildJtFenceSaveBody,
+  normalizeDeviceDetail,
+} from '@/api/device/adapters'
+
+const httpOpts = { auth: true }
 
 /** 获取设备列表 */
-export function getDeviceList(data) {
-    return http.get('/f/la/device/all', data, {
-        loading: false,
-        auth: true,
-        header: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-        },
-    })
+export function getDeviceList(data = {}) {
+  if (isFamilyDeviceApiMode()) {
+    return http.get(resolveDeviceEndpoint('list'), {
+      page: data.page ?? 0,
+      size: data.size ?? 200,
+      groupId: data.groupId,
+      sn: data.sn,
+    }, { ...httpOpts, loading: false })
+  }
+  return http.get(resolveDeviceEndpoint('list'), data, {
+    ...httpOpts,
+    loading: false,
+    header: { 'Content-Type': 'application/x-www-form-urlencoded' },
+  })
+}
+
+/** 批量刷新设备运行状态（JT808） */
+export function refreshDeviceRunInfo(deviceIds) {
+  return http.post(resolveDeviceEndpoint('runInfo'), { deviceIds }, { ...httpOpts, loading: true })
 }
 
 /** 绑定设备 */
 export function bindDevice(data) {
-    return http.post('/f/la/device/bind', data, {
-        loading: true,
-        auth: true,
-
-    })
+  return http.post(resolveDeviceEndpoint('bind'), data, { ...httpOpts, loading: true })
 }
-
 
 /** 解绑设备 */
 export function unbindDevice(data) {
-    return http.post('/f/la/members/devices/unbind', data, {
-        loading: true,
-        auth: true,
-    })
+  return http.post(resolveDeviceEndpoint('unbind'), data, { ...httpOpts, loading: true })
 }
 
 /** 设备详情 */
-export function getDeviceDetail(data) {
-    return http.get('/f/la/iotdoc/device/detail', data, {
-        loading: true,
-        auth: true,
-    })
+export async function getDeviceDetail(data) {
+  let res
+  if (isFamilyDeviceApiMode()) {
+    const url = resolveDevicePath('detail', data)
+    res = await http.get(url, {}, { ...httpOpts, loading: true })
+  } else {
+    res = await http.get(resolveDeviceEndpoint('detail'), { sn: data.sn }, { ...httpOpts, loading: true })
+  }
+  return normalizeDeviceDetail(res)
 }
 
-/** 获取SIM卡信息 */
+/** 获取SIM卡信息（仅 iotdoc 通道） */
 export function getSimDetail(data) {
-    return http.post('/f/la/iotdoc/sim/get', data, {
-        loading: true,
-        auth: true,
-    })
+  return http.post(resolveDeviceEndpoint('simGet'), data, { ...httpOpts, loading: true })
 }
 
-/** 远程开关机 */
+/** 远程开关机（仅 iotdoc 通道） */
 export function simRemoteSwitch(data) {
-    return http.post('/f/la/iotdoc/sim/remote-switch', data, {
-        loading: true,
-        auth: true,
-    })
+  return http.post(resolveDeviceEndpoint('simRemoteSwitch'), data, { ...httpOpts, loading: true })
 }
 
-/** 设备轨迹 */
-export function getDeviceTrack(data) {
-    return http.post('/f/la/iotdoc/location/query', data, {
-        loading: true,
-        auth: true,
-    })
+/** 设备轨迹（单页） */
+export async function getDeviceTrack(data) {
+  if (!isFamilyDeviceApiMode()) {
+    return http.post(resolveDeviceEndpoint('trackQuery'), data, { ...httpOpts, loading: true })
+  }
+  const deviceId = resolveDeviceId(data)
+  const page = Number(data._trackPage) || 0
+  const size = Number(data.limitSize) || 100
+  const res = await http.get(resolveDeviceEndpoint('trackQuery'), {
+    deviceId,
+    timeBegin: unixToDateTime(data.timeBegin),
+    timeEnd: unixToDateTime(data.timeEnd),
+    page,
+    size,
+  }, { ...httpOpts, loading: true })
+  const wrapped = unwrapSpringPage(res, page, size)
+  const points = wrapped.list.map(mapTrackPointToIotdoc)
+  return {
+    data: points,
+    errcode: 0,
+    is_finish: wrapped.isLast,
+    _trackPage: page,
+  }
 }
 
 /** 停留报表（PPoint / PPointSummary） */
-export function getDeviceStay(data) {
-    return http.post('/f/la/iotdoc/location/ppoint-summary', data, {
-        loading: false,
-        auth: true,
-    })
+export async function getDeviceStay(data) {
+  if (!isFamilyDeviceApiMode()) {
+    return http.post(resolveDeviceEndpoint('staySummary'), data, { ...httpOpts, loading: false })
+  }
+  const deviceId = resolveDeviceId(data)
+  const page = parsePageCursor(data.lastSimei)
+  const size = Number(data.limitSize) || 20
+  const res = await http.get(resolveDeviceEndpoint('staySummary'), {
+    deviceId,
+    timeBegin: unixToDateTime(data.timeBegin),
+    timeEnd: unixToDateTime(data.timeEnd),
+    page,
+    size,
+  }, { ...httpOpts, loading: false })
+  const wrapped = unwrapSpringPage(res, page, size)
+  return wrapCursorPageResponse(wrapped.list.map(mapStopToIotdoc), wrapped)
 }
 
-
 /** 行程报表（PDistance） */
-export function getDeviceTrip(data) {
-    return http.post('/f/la/iotdoc/location/pdistance', data, {
-        loading: false,
-        auth: true,
-    })
+export async function getDeviceTrip(data) {
+  if (!isFamilyDeviceApiMode()) {
+    return http.post(resolveDeviceEndpoint('tripSummary'), data, { ...httpOpts, loading: false })
+  }
+  const deviceId = resolveDeviceId(data)
+  const page = parsePageCursor(data.lastSimei)
+  const size = Number(data.limitSize) || 20
+  const res = await http.get(resolveDeviceEndpoint('tripSummary'), {
+    deviceId,
+    timeBegin: unixToDateTime(data.timeBegin),
+    timeEnd: unixToDateTime(data.timeEnd),
+    page,
+    size,
+  }, { ...httpOpts, loading: false })
+  const wrapped = unwrapSpringPage(res, page, size)
+  return wrapCursorPageResponse(wrapped.list.map(mapTripToIotdoc), wrapped)
+}
+
+/** 获取设备配置 */
+export async function getDeviceConfig(data) {
+  if (isFamilyDeviceApiMode()) {
+    const url = resolveDevicePath('deviceConfigGet', data)
+    return http.get(url, {}, { ...httpOpts, loading: false })
+  }
+  return http.post(resolveDeviceEndpoint('deviceConfigGet'), data, { ...httpOpts, loading: false })
+}
+
+/** 立即定位 / 实时追踪 */
+export async function locationTracking(data) {
+  if (isFamilyDeviceApiMode()) {
+    const url = resolveDevicePath('locationTracking', data)
+    return http.post(url, {
+      intervalSec: data.intervalTime ?? data.intervalSec ?? 10,
+      durationSec: data.effectiveTime ?? data.durationSec ?? 300,
+    }, { ...httpOpts, loading: true })
+  }
+  return http.post(resolveDeviceEndpoint('locationTracking'), data, { ...httpOpts, loading: true })
+}
+
+/** 下发设备指令 */
+export async function sendDeviceCmd(data) {
+  if (isFamilyDeviceApiMode()) {
+    const deviceId = resolveDeviceId(data)
+    return http.post(resolveDeviceEndpoint('deviceCmd'), {
+      deviceId,
+      type: data.type,
+      alarmtype: data.alarmtype,
+      content: data.content,
+    }, { ...httpOpts, loading: true })
+  }
+  return http.post(resolveDeviceEndpoint('deviceCmd'), data, { ...httpOpts, loading: true })
+}
+
+/** 修改设备配置 */
+export async function setDeviceConfig(data) {
+  if (isFamilyDeviceApiMode()) {
+    const url = resolveDevicePath('deviceConfigSet', data)
+    const body = data.profile ?? data.params ?? data
+    return http.put(url, body, { ...httpOpts, loading: true })
+  }
+  return http.post(resolveDeviceEndpoint('deviceConfigSet'), data, { ...httpOpts, loading: true })
+}
+
+/** 设备操作日志 */
+export async function getDeviceLog(data) {
+  if (!isFamilyDeviceApiMode()) {
+    return http.post(resolveDeviceEndpoint('deviceLog'), data, { ...httpOpts, loading: false })
+  }
+  const deviceId = resolveDeviceId(data)
+  const page = parsePageCursor(data.lastImei ? `__page:${data.lastImei}` : data.lastSimei)
+  const size = Number(data.limitSize) || 20
+  const res = await http.get(resolveDeviceEndpoint('deviceLog'), {
+    deviceId,
+    opType: data.type || data.opType || undefined,
+    page,
+    size,
+  }, { ...httpOpts, loading: false })
+  const wrapped = unwrapSpringPage(res, page, size)
+  const logs = wrapped.list.map(mapOpLogToIotdoc)
+  const last = logs[logs.length - 1]
+  return {
+    data: logs,
+    errcode: 0,
+    is_finish: wrapped.isLast,
+    last_time: last?.time ?? 0,
+    last_imei: wrapped.isLast ? 0 : page + 1,
+  }
+}
+
+/** 获取定位模式 */
+export async function getLocationMode(data) {
+  if (isFamilyDeviceApiMode()) {
+    const url = resolveDevicePath('locationMode', data)
+    return http.get(url, {}, { ...httpOpts, loading: false })
+  }
+  return http.post(resolveDeviceEndpoint('locationMode'), data, { ...httpOpts, loading: false })
 }
 
 /** 格式化报表时间戳（秒） */
@@ -91,55 +232,6 @@ export function formatStayDuration(seconds) {
     const s = Number(seconds) || 0
     if (s >= 60) return `${(s / 60).toFixed(2)}分钟`
     return `${s}秒`
-}
-
-/** 获取设备配置 */
-export function getDeviceConfig(data) {
-    return http.post('/f/la/iotdoc/device/get-config', data, {
-        loading: false,
-        auth: true,
-    })
-}
-
-/** 立即定位 */
-export function locationTracking(data) {
-    return http.post('/f/la/iotdoc/location/tracking', data, {
-        loading: true,
-        auth: true,
-    })
-}
-
-/** 下发设备指令 */
-export function sendDeviceCmd(data) {
-    return http.post('/f/la/iotdoc/device/cmd', data, {
-        loading: true,
-        auth: true,
-    })
-}
-
-
-/** 修改设备配置 */
-export function setDeviceConfig(data) {
-    return http.post('/f/la/iotdoc/device/set-config', data, {
-        loading: true,
-        auth: true,
-    })
-}
-
-/** 设备操作日志 */
-export function getDeviceLog(data) {
-    return http.post('/f/la/iotdoc/device/get-log', data, {
-        loading: false,
-        auth: true,
-    })
-}
-
-/** 获取定位模式 */
-export function getLocationMode(data) {
-    return http.post('/f/la/iotdoc/loc/get-loc-mode', data, {
-        loading: false,
-        auth: true,
-    })
 }
 
 /** 操作日志时间格式化（支持秒/毫秒时间戳） */
@@ -192,19 +284,19 @@ export function normalizeTripReportItem(item) {
 
 
 /** 获取围栏列表 */
-export function getFenceList(data) {
-    return http.post('/f/la/iotdoc/fence/get', data, {
-        loading: false,
-        auth: true,
-    })
+export async function getFenceList(data) {
+  if (!isFamilyDeviceApiMode()) {
+    return http.post(resolveDeviceEndpoint('fenceGet'), data, { ...httpOpts, loading: false })
+  }
+  const deviceId = resolveDeviceId(data)
+  const list = await http.get(resolveDeviceEndpoint('fenceGet'), { deviceId }, { ...httpOpts, loading: false })
+  const items = (Array.isArray(list) ? list : []).map(mapJtFenceToIotdoc)
+  return { data: items, is_finish: true, errcode: 0 }
 }
 
-/** 创建围栏 */
+/** 创建围栏（同 addFence） */
 export function createFence(data) {
-    return http.post('/f/la/iotdoc/fence/create', data, {
-        loading: true,
-        auth: true,
-    })
+  return addFence(data)
 }
 
 /** 创建分享链接 */
@@ -407,11 +499,12 @@ export function normalizeFenceList(res) {
 }
 
 /** 添加围栏 */
-export function addFence(data) {
-    return http.post('/f/la/iotdoc/fence/add', data, {
-        loading: true,
-        auth: true,
-    })
+export async function addFence(data) {
+  if (isFamilyDeviceApiMode()) {
+    const body = buildJtFenceSaveBody(data)
+    return http.post(resolveDeviceEndpoint('fenceAdd'), body, { ...httpOpts, loading: true })
+  }
+  return http.post(resolveDeviceEndpoint('fenceAdd'), data, { ...httpOpts, loading: true })
 }
 
 /** 定位方式 type 文案 */
@@ -512,10 +605,15 @@ export async function fetchDeviceTrackAll({
     let mileageKm = 0
     let page = 0
     const maxPages = 50
+    const familyMode = isFamilyDeviceApiMode()
 
     while (!isFinish && page < maxPages) {
         const body = { sn, timeBegin, timeEnd, limitSize }
-        if (lastTime > 0) body.last_time = lastTime
+        if (familyMode) {
+            body._trackPage = page
+        } else if (lastTime > 0) {
+            body.last_time = lastTime
+        }
 
         const res = await getDeviceTrack(body)
         const wrapped = unwrapTrackResponse(res)
@@ -539,7 +637,9 @@ export async function fetchDeviceTrackAll({
 
         all.push(...batch)
         isFinish = wrapped.is_finish
-        lastTime = batch[batch.length - 1].time
+        if (!familyMode) {
+            lastTime = batch[batch.length - 1].time
+        }
         page += 1
 
         if (isFinish) break
@@ -556,26 +656,36 @@ export async function fetchDeviceTrackAll({
 
 /** 规范化设备列表 */
 export function normalizeDeviceList(res) {
-    let list = res
-    if (res && !Array.isArray(res)) {
-        list = res.list || res.records || res.data || res.devices || []
+  let list = res
+  if (res && !Array.isArray(res)) {
+    list = res.content || res.list || res.records || res.data || res.devices || []
+  }
+  if (!Array.isArray(list)) return []
+  return list.map((item) => {
+    const sn = item.sn || item.deviceNo || item.deviceId || item.id || ''
+    const onlineStatus = item.onlineStatus
+    let status = item.status || item.onlineStatus
+    if (status === 0 || status === 1) {
+      status = status === 1 ? '在线' : '离线'
     }
-    if (!Array.isArray(list)) return []
-    return list.map((item) => {
-        const sn = item.sn || item.deviceNo || item.deviceId || item.id || ''
-        const status = item.status || item.onlineStatus || '离线'
-        const statusStr = typeof status === 'number'
-            ? (status === 1 ? '在线' : '离线')
-            : String(status)
-        const isStatic = statusStr === '静止' || statusStr === '静止中'
-        return {
-            name: item.name || item.deviceName || sn,
-            sn: String(sn),
-            status: statusStr,
-            statusType: isStatic ? 'static' : (statusStr.includes('线') && statusStr !== '在线' ? 'offline' : 'static'),
-            latitude: item.latitude,
-            longitude: item.longitude,
-            address: item.address,
-        }
-    }).filter((d) => d.sn)
+    const statusStr = typeof status === 'number'
+      ? (status === 1 ? '在线' : '离线')
+      : (onlineStatus === 1 ? '在线' : onlineStatus === 0 ? '离线' : String(status || '离线'))
+    const isStatic = statusStr === '静止' || statusStr === '静止中'
+    return {
+      deviceId: item.deviceId ?? item.id ?? null,
+      name: item.alias || item.name || item.deviceName || sn,
+      sn: String(sn),
+      status: statusStr,
+      statusType: isStatic ? 'static' : (statusStr.includes('线') && statusStr !== '在线' ? 'offline' : 'static'),
+      latitude: item.lastLat ?? item.latitude,
+      longitude: item.lastLng ?? item.longitude,
+      address: item.address,
+      sourceType: item.sourceType,
+      onlineStatus,
+      raw: item,
+    }
+  }).filter((d) => d.sn)
 }
+
+export { DEVICE_API_MODE, getDeviceApiMode, setDeviceApiMode, getDeviceApiModeLabel } from '@/common/device-api-mode'

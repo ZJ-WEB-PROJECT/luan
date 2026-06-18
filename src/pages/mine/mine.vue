@@ -58,23 +58,65 @@
 <script>
 import { THEME_GREEN } from '@/common/theme.js'
 import { getUserInfo } from '@/api/user'
+import {
+  DEVICE_API_MODE,
+  DEVICE_API_MODE_EVENT,
+  getDeviceApiMode,
+  getDeviceApiModeLabel,
+  setDeviceApiMode,
+} from '@/common/device-api-mode'
+
 export default {
   data() {
     return {
       THEME_GREEN,
+      deviceApiMode: getDeviceApiMode(),
       user: {},
-      tools: [
+    }
+  },
+  computed: {
+    tools() {
+      const isFamily = this.deviceApiMode === DEVICE_API_MODE.FAMILY
+      return [
+        { key: 'apiMode', label: isFamily ? '切换旧版' : '切换新版', icon: 'reload' },
         { key: 'service', label: '联系客服', icon: 'server-fill' },
         { key: 'feedback', label: '意见与建议', icon: 'email-fill' },
         { key: 'setting', label: '设置', icon: 'setting-fill' },
-      ],
-    }
+      ]
+    },
   },
   onShow() {
     this.user = uni.getStorageSync('userInfo')
+    this.deviceApiMode = getDeviceApiMode()
     this.loadUserInfo()
   },
+  onLoad() {
+    uni.$on(DEVICE_API_MODE_EVENT, this.onDeviceApiModeChanged)
+  },
+  onUnload() {
+    uni.$off(DEVICE_API_MODE_EVENT, this.onDeviceApiModeChanged)
+  },
   methods: {
+    onDeviceApiModeChanged(mode) {
+      this.deviceApiMode = mode
+    },
+    onToggleApiMode() {
+      const next = this.deviceApiMode === DEVICE_API_MODE.FAMILY
+        ? DEVICE_API_MODE.LEGACY
+        : DEVICE_API_MODE.FAMILY
+      uni.showModal({
+        title: '切换接口版本',
+        content: `确认切换到${getDeviceApiModeLabel(next)}？切换后将清空当前选中设备。`,
+        confirmColor: '#3dba6e',
+        success: (res) => {
+          if (!res.confirm) return
+          setDeviceApiMode(next)
+          this.deviceApiMode = next
+          uni.removeStorageSync('currentDevice')
+          uni.$u.toast(`已切换为${getDeviceApiModeLabel(next)}`)
+        },
+      })
+    },
     loadUserInfo() {
       getUserInfo().then(res => {
         this.user = res
@@ -87,6 +129,10 @@ export default {
       })
     },
     onTool(tool) {
+      if (tool.key === 'apiMode') {
+        this.onToggleApiMode()
+        return
+      }
       if (tool.key === 'setting') {
         uni.navigateTo({ url: '/pages/mine/setting' })
         return

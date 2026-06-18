@@ -76,6 +76,7 @@
         },
         "usingComponents" : true,
         "mergeVirtualHostAttributes" : true,
+        "__usePrivacyCheck__" : true,
         "permission" : {
             "scope.userLocation" : {
                 "desc" : "您的位置信息将用于地图定位与距离计算"

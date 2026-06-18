@@ -35,7 +35,7 @@
               </view>
             </view>
             <text class="signal-item__name">{{ sig.name }}</text>
-            <view class="signal-badge" :class="'signal-badge--' + (deviceInfo.power <= 20 ? 'danger' : 'success')">
+            <view class="signal-badge" v-if="sig.key === 'battery'" :class="'signal-badge--' + (deviceInfo.power <= 20 ? 'danger' : 'success')">
               <text>{{ deviceInfo.power }}%</text>
             </view>
           </view>

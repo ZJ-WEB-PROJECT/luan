@@ -67,10 +67,10 @@ export default {
     this.wechatAuthInfo = uni.getStorageSync('wechatAuthInfo') || null
     this.wechatLoginResult = uni.getStorageSync('wechatLoginResult') || null
     console.log('this.wechatAuthInfo', this.wechatAuthInfo)
-    if (!this.wechatAuthInfo?.code) {
-      uni.$u.toast('微信授权信息已失效，请重新登录')
-      setTimeout(() => this.goLogin(), 800)
-    }
+    // if (!this.wechatAuthInfo?.code) {
+    //   uni.$u.toast('微信授权信息已失效，请重新登录')
+    //   setTimeout(() => this.goLogin(), 800)
+    // }
   },
   onUnload() {
     this.clearCodeTimer()
@@ -102,14 +102,31 @@ export default {
         })
       })
     },
+    getPhoneNumberErrorMessage(errMsg = '') {
+      const msg = String(errMsg)
+      if (/no permission/i.test(msg)) {
+        return '小程序未开通手机号能力，请确认：1.已完成微信认证（300元，非仅主体打款验证）2.后台已配置用户隐私保护指引并声明手机号'
+      }
+      if (/user deny|cancel/i.test(msg)) {
+        return '你已取消授权'
+      }
+      if (/privacy|needAuthorization|scope is not declared/i.test(msg)) {
+        return '请先同意隐私政策，并在公众平台隐私指引中声明手机号收集'
+      }
+      if (/quota|exceed/i.test(msg)) {
+        return '手机号验证额度不足，请在微信公众平台充值或改用手动输入'
+      }
+      return '获取手机号失败，请手动输入'
+    },
     onGetWechatPhoneTip() {
       uni.$u.toast('请在微信小程序中使用')
     },
     async onGetWechatPhone(e) {
       console.log('onGetWechatPhone', e)
       const detail = e?.detail || {}
-      if (detail.errMsg && !/ok|success/i.test(detail.errMsg)) {
-        uni.$u.toast('你已取消授权')
+      const errMsg = detail.errMsg || ''
+      if (errMsg && !/ok|success/i.test(errMsg)) {
+        uni.$u.toast(this.getPhoneNumberErrorMessage(errMsg))
         return
       }
       const phoneCode = detail.code

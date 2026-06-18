@@ -267,13 +267,15 @@ export default {
     async loadCurrentDevice() {
       const saved = uni.getStorageSync(STORAGE_KEY)
       if (!saved || !saved.sn) return
-      const res = await getDeviceDetail({ sn: saved.sn })
-      res.status = res.state == 'e_line_sleep' ? '静止' : res.state == 'e_line_down' ? '离线' : '在线'
-      res.last_pos = JSON.parse(res.last_pos)
-      const pos = res.last_pos.wgs.split(',')
-      res.latitude = Number(pos[0])
-      res.longitude = Number(pos[1])
-      res.address = res.last_pos.addr
+      const res = await getDeviceDetail({ sn: saved.sn, deviceId: saved.deviceId })
+      res.status = res.state === 'e_line_sleep' ? '静止' : res.state === 'e_line_down' ? '离线' : '在线'
+      const lastPos = res.last_pos || {}
+      if (lastPos.wgs) {
+        const pos = String(lastPos.wgs).split(',')
+        res.latitude = Number(pos[0])
+        res.longitude = Number(pos[1])
+        res.address = lastPos.addr || res.address
+      }
       this.device = res
       this.refreshMapInfo()
       // const status = saved.status || '离线'

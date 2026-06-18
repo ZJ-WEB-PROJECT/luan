@@ -73,6 +73,8 @@ export default {
     } else if (this.deviceList.length) {
       this.selectedSn = this.deviceList[0].sn
     }
+  },
+  onShow() {
     this.getDeviceList()
   },
   methods: {
