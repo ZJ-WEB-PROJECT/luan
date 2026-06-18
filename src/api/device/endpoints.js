@@ -12,7 +12,7 @@
 
  * 绑定/列表等会员设备接口两通道共用 /f/la/device/**。
 
- * 含 {deviceId} 的路径需在 adapters.resolveDevicePath 中替换。
+ * 含 {sn} 的路径需在 adapters.resolveDevicePath 中替换。
 
  *
 
@@ -48,13 +48,13 @@ export const DEVICE_API_ENDPOINTS = {
 
   },
 
-  /** legacy: GET ?sn=  |  family: GET /{deviceId} */
+  /** legacy: GET ?sn=  |  family: GET /{sn} */
 
   detail: {
 
-    legacy: '/f/la/device/{deviceId}',
+    legacy: '/f/la/iotdoc/device/detail',
 
-    family: '/f/la/device/{deviceId}',
+    family: '/f/la/device/{sn}',
 
   },
 
@@ -112,7 +112,7 @@ export const DEVICE_API_ENDPOINTS = {
 
     legacy: '/f/la/iotdoc/device/get-config',
 
-    family: '/f/la/device/{deviceId}/profile',
+    family: '/f/la/device/{sn}/profile',
 
   },
 
@@ -120,7 +120,7 @@ export const DEVICE_API_ENDPOINTS = {
 
     legacy: '/f/la/iotdoc/device/set-config',
 
-    family: '/f/la/device/{deviceId}/profile',
+    family: '/f/la/device/{sn}/profile',
 
   },
 
@@ -128,7 +128,7 @@ export const DEVICE_API_ENDPOINTS = {
 
     legacy: '/f/la/iotdoc/location/tracking',
 
-    family: '/f/la/device/{deviceId}/tracking',
+    family: '/f/la/device/{sn}/tracking',
 
   },
 
@@ -152,7 +152,7 @@ export const DEVICE_API_ENDPOINTS = {
 
     legacy: '/f/la/iotdoc/loc/get-loc-mode',
 
-    family: '/f/la/device/{deviceId}/loc-mode',
+    family: '/f/la/device/{sn}/loc-mode',
 
   },
 

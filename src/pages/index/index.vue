@@ -268,7 +268,7 @@ export default {
       const saved = uni.getStorageSync(STORAGE_KEY)
       if (!saved || !saved.sn) return
       console.log(saved)
-      const res = await getDeviceDetail({ sn: saved.sn, deviceId: saved.deviceId || saved.sn })
+      const res = await getDeviceDetail({ sn: saved.sn })
       res.status = res.state === 'e_line_sleep' ? '静止' : res.state === 'e_line_down' ? '离线' : '在线'
       const lastPos = res.last_pos || {}
       if (lastPos.wgs) {

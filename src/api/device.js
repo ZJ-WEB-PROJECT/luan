@@ -6,7 +6,7 @@ import {
   DEVICE_API_MODE,
 } from '@/common/device-api-mode'
 import {
-  resolveDeviceId,
+  resolveDeviceSn,
   resolveDevicePath,
   unixToDateTime,
   parsePageCursor,
@@ -41,8 +41,9 @@ export function getDeviceList(data = {}) {
 }
 
 /** 批量刷新设备运行状态（JT808） */
-export function refreshDeviceRunInfo(deviceIds) {
-  return http.post(resolveDeviceEndpoint('runInfo'), { deviceIds }, { ...httpOpts, loading: true })
+export function refreshDeviceRunInfo(sns) {
+  const list = (Array.isArray(sns) ? sns : [sns]).filter(Boolean)
+  return http.post(resolveDeviceEndpoint('runInfo'), { sns: list }, { ...httpOpts, loading: true })
 }
 
 /** 绑定设备 */
@@ -56,16 +57,14 @@ export function unbindDevice(data) {
 }
 
 /** 设备详情 */
-export async function getDeviceDetail(data) { 
+export async function getDeviceDetail(data) {
   let res
-  // if (isFamilyDeviceApiMode()) {
-  //   const url = resolveDevicePath('detail', data)
-  //   res = await http.get(url, {}, { ...httpOpts, loading: true })
-  // } else {
-  //   res = await http.get(resolveDeviceEndpoint('detail'), { sn: data.sn }, { ...httpOpts, loading: true })
-  // }
-  const url = resolveDevicePath('detail', data)
-  res = await http.get(url, {}, { ...httpOpts, loading: true })
+  if (isFamilyDeviceApiMode()) {
+    const url = resolveDevicePath('detail', data)
+    res = await http.get(url, {}, { ...httpOpts, loading: true })
+  } else {
+    res = await http.get(resolveDeviceEndpoint('detail'), { sn: resolveDeviceSn(data) }, { ...httpOpts, loading: true })
+  }
   return normalizeDeviceDetail(res)
 }
 
@@ -84,11 +83,11 @@ export async function getDeviceTrack(data) {
   if (!isFamilyDeviceApiMode()) {
     return http.post(resolveDeviceEndpoint('trackQuery'), data, { ...httpOpts, loading: true })
   }
-  const deviceId = resolveDeviceId(data)
+  const sn = resolveDeviceSn(data)
   const page = Number(data._trackPage) || 0
   const size = Number(data.limitSize) || 100
   const res = await http.get(resolveDeviceEndpoint('trackQuery'), {
-    deviceId,
+    sn,
     timeBegin: unixToDateTime(data.timeBegin),
     timeEnd: unixToDateTime(data.timeEnd),
     page,
@@ -109,11 +108,11 @@ export async function getDeviceStay(data) {
   if (!isFamilyDeviceApiMode()) {
     return http.post(resolveDeviceEndpoint('staySummary'), data, { ...httpOpts, loading: false })
   }
-  const deviceId = resolveDeviceId(data)
+  const sn = resolveDeviceSn(data)
   const page = parsePageCursor(data.lastSimei)
   const size = Number(data.limitSize) || 20
   const res = await http.get(resolveDeviceEndpoint('staySummary'), {
-    deviceId,
+    sn,
     timeBegin: unixToDateTime(data.timeBegin),
     timeEnd: unixToDateTime(data.timeEnd),
     page,
@@ -128,11 +127,11 @@ export async function getDeviceTrip(data) {
   if (!isFamilyDeviceApiMode()) {
     return http.post(resolveDeviceEndpoint('tripSummary'), data, { ...httpOpts, loading: false })
   }
-  const deviceId = resolveDeviceId(data)
+  const sn = resolveDeviceSn(data)
   const page = parsePageCursor(data.lastSimei)
   const size = Number(data.limitSize) || 20
   const res = await http.get(resolveDeviceEndpoint('tripSummary'), {
-    deviceId,
+    sn,
     timeBegin: unixToDateTime(data.timeBegin),
     timeEnd: unixToDateTime(data.timeEnd),
     page,
@@ -166,9 +165,9 @@ export async function locationTracking(data) {
 /** 下发设备指令 */
 export async function sendDeviceCmd(data) {
   if (isFamilyDeviceApiMode()) {
-    const deviceId = resolveDeviceId(data)
+    const sn = resolveDeviceSn(data)
     return http.post(resolveDeviceEndpoint('deviceCmd'), {
-      deviceId,
+      sn,
       type: data.type,
       alarmtype: data.alarmtype,
       content: data.content,
@@ -192,11 +191,11 @@ export async function getDeviceLog(data) {
   if (!isFamilyDeviceApiMode()) {
     return http.post(resolveDeviceEndpoint('deviceLog'), data, { ...httpOpts, loading: false })
   }
-  const deviceId = resolveDeviceId(data)
+  const sn = resolveDeviceSn(data)
   const page = parsePageCursor(data.lastImei ? `__page:${data.lastImei}` : data.lastSimei)
   const size = Number(data.limitSize) || 20
   const res = await http.get(resolveDeviceEndpoint('deviceLog'), {
-    deviceId,
+    sn,
     opType: data.type || data.opType || undefined,
     page,
     size,
@@ -290,8 +289,12 @@ export async function getFenceList(data) {
   if (!isFamilyDeviceApiMode()) {
     return http.post(resolveDeviceEndpoint('fenceGet'), data, { ...httpOpts, loading: false })
   }
-  const deviceId = resolveDeviceId(data)
-  const list = await http.get(resolveDeviceEndpoint('fenceGet'), { deviceId }, { ...httpOpts, loading: false })
+  const sn = resolveDeviceSn(data)
+  const list = await http.post(resolveDeviceEndpoint('fenceGet'), {
+    sn,
+    limitSize: data.limitSize,
+    lastSfid: data.lastSfid,
+  }, { ...httpOpts, loading: false })
   const items = (Array.isArray(list) ? list : []).map(mapJtFenceToIotdoc)
   return { data: items, is_finish: true, errcode: 0 }
 }

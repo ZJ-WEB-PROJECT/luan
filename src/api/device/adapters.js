@@ -13,7 +13,7 @@ function fromFenceCoord(value) {
 
 
 
-/** sn / deviceId → la_device.id */
+/** sn / deviceId → la_device.id（内部映射，请求参数已统一为 sn） */
 
 export function resolveDeviceId(data = {}) {
 
@@ -59,21 +59,43 @@ export function resolveDeviceId(data = {}) {
 
 
 
-/** 替换路径中的 {deviceId} */
+/** 解析设备 SN（路径参数 / 查询参数） */
+
+export function resolveDeviceSn(data = {}) {
+
+  const sn = String(data.sn || '').trim()
+
+  if (sn) return sn
+
+
+
+  const current = uni.getStorageSync(CURRENT_DEVICE_KEY)
+
+  if (current?.sn) return String(current.sn).trim()
+
+
+
+  return null
+
+}
+
+
+
+/** 替换路径中的 {sn} */
 
 export function resolveDevicePath(key, params = {}) {
 
-  const deviceId = params.deviceId ?? resolveDeviceId(params)
+  const sn = resolveDeviceSn(params)
 
-  if (deviceId == null) {
+  if (!sn) {
 
-    throw new Error('未找到设备 ID，请重新选择设备')
+    throw new Error('未找到设备 SN，请重新选择设备')
 
   }
 
   const path = resolveDeviceEndpoint(key)
 
-  return path.replace('{deviceId}', String(deviceId))
+  return path.replace('{sn}', encodeURIComponent(sn))
 
 }
 
@@ -210,7 +232,11 @@ export function normalizeDeviceDetail(res) {
         lastPos = null
       }
     }
-    return { ...res, last_pos: lastPos }
+    const lastComRaw = res.last_com_time ?? res.lastSeenTime
+    const lastComTime = typeof lastComRaw === 'number'
+      ? (lastComRaw > 1e12 ? Math.floor(lastComRaw / 1000) : lastComRaw)
+      : dateTimeToUnix(lastComRaw)
+    return { ...res, last_pos: lastPos, last_com_time: lastComTime || res.last_com_time }
   }
 
   const lat = res.lastLat ?? res.latitude
@@ -220,13 +246,17 @@ export function normalizeDeviceDetail(res) {
     wgs: lat != null && lng != null ? `${lat},${lng}` : '',
     addr: res.address || '',
   }
+  const lastComRaw = res.last_com_time ?? res.lastSeenTime ?? res.updateTime
+  const lastComTime = typeof lastComRaw === 'number'
+    ? (lastComRaw > 1e12 ? Math.floor(lastComRaw / 1000) : lastComRaw)
+    : dateTimeToUnix(lastComRaw)
   return {
     ...res,
     deviceId: res.deviceId ?? res.id,
-    imei: res.sn,
+    imei: res.sn ?? res.imei,
     state: online ? 'e_line_on' : 'e_line_down',
     power: res.batteryPercent ?? res.power ?? 0,
-    last_com_time: res.lastSeenTime ?? res.updateTime,
+    last_com_time: lastComTime,
     last_pos: lastPos,
   }
 }
@@ -500,7 +530,7 @@ const IOTDOC_FENCE_TYPE_TO_JT = {
 
 export function buildJtFenceSaveBody(payload = {}) {
 
-  const deviceId = resolveDeviceId(payload)
+  const sn = resolveDeviceSn(payload)
 
   const params = payload.params || payload
 
@@ -554,7 +584,7 @@ export function buildJtFenceSaveBody(payload = {}) {
 
   return {
 
-    deviceId,
+    sn,
 
     fence: {
 
