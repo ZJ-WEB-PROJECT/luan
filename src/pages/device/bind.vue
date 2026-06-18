@@ -113,13 +113,7 @@ export default {
           // password: pwd,
           sn,
         })
-        const device = {
-          sn,
-          name: data?.name || data?.deviceName || sn,
-          status: data?.status || '离线',
-          statusType: 'offline',
-        }
-        uni.setStorageSync(STORAGE_KEY, device)
+        uni.setStorageSync(STORAGE_KEY, data)
         uni.$u.toast('绑定成功')
         setTimeout(() => {
           const pages = getCurrentPages()

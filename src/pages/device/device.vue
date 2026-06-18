@@ -89,7 +89,7 @@ export default {
         { key: 'workmode', label: '工作模式', icon: 'map', bg: 'linear-gradient(135deg,#ffd54f,#ffb300)' },
         { key: 'info', label: '设备信息', icon: 'file-text-fill', bg: 'linear-gradient(135deg,#ff6b6b,#e53935)' },
       ],
-    }
+    } 
   },
   onLoad(options) {
     this.deviceId = uni.getStorageSync('currentDevice').sn
