@@ -19,6 +19,7 @@ import {
   mapJtFenceToIotdoc,
   buildJtFenceSaveBody,
   normalizeDeviceDetail,
+  mapAlarmToIotdoc,
 } from '@/api/device/adapters'
 
 const httpOpts = { auth: true }
@@ -33,11 +34,7 @@ export function getDeviceList(data = {}) {
       sn: data.sn,
     }, { ...httpOpts, loading: false })
   }
-  return http.get(resolveDeviceEndpoint('list'), data, {
-    ...httpOpts,
-    loading: false,
-    header: { 'Content-Type': 'application/x-www-form-urlencoded' },
-  })
+  return http.get(resolveDeviceEndpoint('list'), {}, { ...httpOpts, loading: false })
 }
 
 /** 批量刷新设备运行状态（JT808） */
@@ -221,6 +218,154 @@ export async function getLocationMode(data) {
   return http.post(resolveDeviceEndpoint('locationMode'), data, { ...httpOpts, loading: false })
 }
 
+/** 保存定位模式 */
+export async function setLocationMode(data) {
+  const body = data.body ?? {
+    locMode: data.locMode,
+    reportIntervalS: data.reportIntervalS,
+    alarmSwitch: data.alarmSwitch,
+    indicator: data.indicator,
+  }
+  if (isFamilyDeviceApiMode()) {
+    const url = resolveDevicePath('locationModeSet', data)
+    return http.put(url, body, { ...httpOpts, loading: true })
+  }
+  return http.post(resolveDeviceEndpoint('locationModeSet'), {
+    sn: resolveDeviceSn(data),
+    params: data.params ?? body,
+  }, { ...httpOpts, loading: true })
+}
+
+/** 工作模式 UI → LaDeviceLocModeDto */
+const WORK_MODE_TO_LOC = {
+  second: 'good',
+  smart: 'normal',
+  timed: 'normal',
+  power: 'powerSaving',
+}
+const LOCATE_INTERVAL_SEC = {
+  '30s': 30,
+  '1m': 60,
+  '2m': 120,
+  '5m': 300,
+  '10m': 600,
+}
+
+export function buildWorkModePayload({ sn, workMode, locateInterval }) {
+  return {
+    sn,
+    locMode: WORK_MODE_TO_LOC[workMode] || 'normal',
+    reportIntervalS: LOCATE_INTERVAL_SEC[locateInterval] || 30,
+  }
+}
+
+/** 定时开关机读 */
+export async function getTimerSwitch(data) {
+  if (isFamilyDeviceApiMode()) {
+    const url = resolveDevicePath('timerSwitch', data)
+    return http.get(url, {}, { ...httpOpts, loading: false })
+  }
+  return http.post('/f/la/iotdoc/timerswitch/get', { sn: resolveDeviceSn(data) }, { ...httpOpts, loading: false })
+}
+
+/** 定时开关机写（family PUT / legacy POST set） */
+export async function setTimerSwitch(data) {
+  const body = data.body ?? data
+  if (isFamilyDeviceApiMode()) {
+    const url = resolveDevicePath('timerSwitch', data)
+    return http.put(url, body, { ...httpOpts, loading: true })
+  }
+  return http.post('/f/la/iotdoc/timerswitch/set', { sn: resolveDeviceSn(data), ...body }, { ...httpOpts, loading: true })
+}
+
+/** 关闭定时开关机 */
+export async function deleteTimerSwitch(data) {
+  if (isFamilyDeviceApiMode()) {
+    const url = resolveDevicePath('timerSwitch', data)
+    return http.delete(url, {}, { ...httpOpts, loading: true })
+  }
+  return http.post('/f/la/iotdoc/timerswitch/close', { sn: resolveDeviceSn(data) }, { ...httpOpts, loading: true })
+}
+
+/** 终端参数只读 */
+export async function getTerminalParams(data) {
+  if (isFamilyDeviceApiMode()) {
+    const url = resolveDevicePath('terminalParams', data)
+    return http.get(url, {}, { ...httpOpts, loading: false })
+  }
+  const detail = await getDeviceDetail(data)
+  return detail?.detail ?? detail?.terminalParamsJson ?? detail
+}
+
+/** 有轨迹的日期 */
+export async function getTrackDates(data) {
+  const sn = resolveDeviceSn(data)
+  if (isFamilyDeviceApiMode()) {
+    return http.get(resolveDeviceEndpoint('trackDates'), {
+      sn,
+      dateBegin: data.dateBegin ? unixToDateTime(data.dateBegin) : undefined,
+      dateEnd: data.dateEnd ? unixToDateTime(data.dateEnd) : undefined,
+    }, { ...httpOpts, loading: false })
+  }
+  return http.post(resolveDeviceEndpoint('trackDates'), { sn, ...data }, { ...httpOpts, loading: false })
+}
+
+/** 里程统计 */
+export async function getAnalyticsDistance(data) {
+  const sn = resolveDeviceSn(data)
+  if (isFamilyDeviceApiMode()) {
+    return http.get(resolveDeviceEndpoint('analyticsDistance'), {
+      sn,
+      timeBegin: unixToDateTime(data.timeBegin),
+      timeEnd: unixToDateTime(data.timeEnd),
+    }, { ...httpOpts, loading: false })
+  }
+  return http.post(resolveDeviceEndpoint('analyticsDistance'), data, { ...httpOpts, loading: false })
+}
+
+/** 超速点分页 */
+export async function getAnalyticsOverspeed(data) {
+  const sn = resolveDeviceSn(data)
+  const page = Number(data.page) || 0
+  const size = Number(data.size) || 20
+  if (isFamilyDeviceApiMode()) {
+    const res = await http.get(resolveDeviceEndpoint('analyticsOverspeed'), {
+      sn,
+      timeBegin: unixToDateTime(data.timeBegin),
+      timeEnd: unixToDateTime(data.timeEnd),
+      speedLimit: data.speedLimit,
+      page,
+      size,
+    }, { ...httpOpts, loading: false })
+    return unwrapSpringPage(res, page, size)
+  }
+  return http.post(resolveDeviceEndpoint('analyticsOverspeed'), data, { ...httpOpts, loading: false })
+}
+
+/** 告警列表（双通道） */
+export async function getAlarmList(data = {}) {
+  if (!isFamilyDeviceApiMode()) {
+    return http.post(resolveDeviceEndpoint('alarmList'), data, { ...httpOpts, loading: true })
+  }
+  const sn = resolveDeviceSn(data)
+  const page = Number(data.page) || 0
+  const size = Number(data.limitSize ?? data.size) || 20
+  const res = await http.get(resolveDeviceEndpoint('alarmList'), {
+    sn,
+    page,
+    size,
+    timeBegin: data.timeBegin ? unixToDateTime(data.timeBegin) : undefined,
+    timeEnd: data.timeEnd ? unixToDateTime(data.timeEnd) : undefined,
+    alarmType: data.alarmType || data.type || undefined,
+    ackStatus: data.ackStatus,
+  }, { ...httpOpts, loading: true })
+  const wrapped = unwrapSpringPage(res, page, size)
+  return {
+    items: wrapped.list.map(mapAlarmToIotdoc),
+    is_finish: wrapped.isLast,
+  }
+}
+
 /** 格式化报表时间戳（秒） */
 export function formatReportTime(ts) {
   const t = Number(ts)
@@ -309,9 +454,15 @@ export function createShareLink(data) {
   return http.post('/f/la/share/create', data, { loading: true, auth: true })
 }
 
-/** 访客查看分享定位（传 shareToken，无需登录） */
+/** 撤销分享链接 */
+export function revokeShareLink(data) {
+  return http.post('/f/la/share/revoke', data, { loading: true, auth: true })
+}
+
+/** 访客查看分享定位（传 token / shareToken，无需登录） */
 export function getShareView(data) {
-  return http.get('/f/la/share/view', data, { loading: true, auth: false })
+  const token = data?.token ?? data?.shareToken ?? ''
+  return http.get('/f/la/share/view', { token }, { loading: true, auth: false })
 }
 
 /** 解析访客分享定位数据 */
@@ -509,7 +660,28 @@ export async function addFence(data) {
     const body = buildJtFenceSaveBody(data)
     return http.post(resolveDeviceEndpoint('fenceAdd'), body, { ...httpOpts, loading: true })
   }
-  return http.post(resolveDeviceEndpoint('fenceAdd'), data, { ...httpOpts, loading: true })
+  const payload = { ...data, sn: resolveDeviceSn(data) }
+  return http.post(resolveDeviceEndpoint('fenceAdd'), payload, { ...httpOpts, loading: true })
+}
+
+/** 修改围栏 */
+export async function modifyFence(data) {
+  if (isFamilyDeviceApiMode()) {
+    const body = buildJtFenceSaveBody(data)
+    return http.post(resolveDeviceEndpoint('fenceModify'), body, { ...httpOpts, loading: true })
+  }
+  const payload = { ...data, sn: resolveDeviceSn(data) }
+  return http.post(resolveDeviceEndpoint('fenceModify'), payload, { ...httpOpts, loading: true })
+}
+
+/** 删除围栏 */
+export async function deleteFence(data) {
+  const sn = resolveDeviceSn(data)
+  const fenceId = Number(data.fenceId ?? data.id)
+  if (isFamilyDeviceApiMode()) {
+    return http.post(resolveDeviceEndpoint('fenceDel'), { sn, fenceId }, { ...httpOpts, loading: true })
+  }
+  return http.post(resolveDeviceEndpoint('fenceDel'), { sn, fenceId, ...data }, { ...httpOpts, loading: true })
 }
 
 /** 定位方式 type 文案 */

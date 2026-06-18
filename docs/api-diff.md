@@ -4,6 +4,27 @@
 > 前端 App：`src/api/**`（uni-app C 端）  
 > 管理台：`luan-web/src/api/**`（eladmin B 端）
 
+## 适配进度总览
+
+| 优先级 | 项 | 状态 | 说明 |
+|--------|-----|------|------|
+| P0 | 分享查看 `?token=` | ✅ 已完成 | `getShareView` |
+| P1 | family 告警 `GET /alarm` | ✅ 已完成 | `getAlarmList` 双通道 |
+| P1 | legacy 列表 `/device/all` | ✅ 已完成 | `getDeviceList` |
+| P2 | 定位模式保存 PUT loc-mode | ✅ 已完成 | `setLocationMode` + `workmode.vue` |
+| P2 | 围栏 modify | ✅ 已完成 | `modifyFence` + `fence/create.vue` |
+| P2 | 设备信息页拉详情 | ✅ 已完成 | `device/info.vue` |
+| P2 | 围栏 del | ✅ API 已完成 | `deleteFence`（列表页 UI 待接） |
+| P3 | 轨迹日期 / 里程 / 超速 | ✅ API 已完成 | `getTrackDates` 等（页面待接） |
+| P3 | 定时开关机 family | ✅ API 已完成 | `get/set/deleteTimerSwitch`（页面待接） |
+| P3 | 分享撤销 | ✅ API 已完成 | `revokeShareLink`（页面待接） |
+| — | 告警 ack/delete/latest | ⬜ 待办 | family 专用 |
+| — | 围栏 batch-del / bind-devices | ⬜ 待办 | |
+| — | 设备换组 `PUT /{sn}/group` | ⬜ 待办 | |
+| — | legacy 围栏 params 去 simei | ⬜ 待办 | 见第五节 |
+
+---
+
 ## 变更原则
 
 后端 C 端 `/api/f/la/**` 与 B 端 `/api/la/**` 统一：
@@ -21,123 +42,105 @@
 
 ## 一、已在前端适配（✅）
 
-以下接口已在 `src/api/device.js` / `adapters.js` / `endpoints.js` 中按新规范改完。
-
 ### 1. 设备（family / JT808 通道）
 
-| 功能 | 方法 | 新路径 | 参数变化 |
-|------|------|--------|----------|
-| 设备详情 | GET | `/f/la/device/{sn}` | 原 `/{id}` |
-| 运行状态刷新 | POST | `/f/la/device/run-info` | body: `{ sns: string[] }` |
-| 下发指令 | POST | `/f/la/device/cmd` | body: `{ sn, type, ... }` |
-| 操作日志 | GET | `/f/la/device/op-logs` | `?sn=&page=&size=` |
-| 业务配置读 | GET | `/f/la/device/{sn}/profile` | 原 `/{id}/profile` |
-| 业务配置写 | PUT | `/f/la/device/{sn}/profile` | 原 `/{id}/profile` |
-| 实时追踪 | POST | `/f/la/device/{sn}/tracking` | body: `{ intervalSec, durationSec }` |
-| 定位模式读 | GET | `/f/la/device/{sn}/loc-mode` | 原 `/{id}/loc-mode` |
+| 功能 | 方法 | 新路径 | 前端 |
+|------|------|--------|------|
+| 设备详情 | GET | `/f/la/device/{sn}` | ✅ `getDeviceDetail` |
+| 运行状态刷新 | POST | `/f/la/device/run-info` | ✅ `{ sns }` |
+| 下发指令 | POST | `/f/la/device/cmd` | ✅ `{ sn }` |
+| 操作日志 | GET | `/f/la/device/op-logs` | ✅ `?sn=` |
+| 业务配置读 | GET | `/f/la/device/{sn}/profile` | ✅ |
+| 业务配置写 | PUT | `/f/la/device/{sn}/profile` | ✅ |
+| 实时追踪 | POST | `/f/la/device/{sn}/tracking` | ✅ |
+| 定位模式读 | GET | `/f/la/device/{sn}/loc-mode` | ✅ `getLocationMode` |
+| 定位模式写 | PUT | `/f/la/device/{sn}/loc-mode` | ✅ `setLocationMode` |
+| 定时开关机 | GET/PUT/DELETE | `/f/la/device/{sn}/timer-switch` | ✅ API |
+| 终端参数 | GET | `/f/la/device/{sn}/terminal-params` | ✅ `getTerminalParams` |
 
 ### 2. 轨迹 / 报表（family）
 
-| 功能 | 方法 | 新路径 | 参数变化 |
-|------|------|--------|----------|
-| 历史轨迹 | GET | `/f/la/location` | `?sn=&timeBegin=&timeEnd=&page=&size=` |
-| 停留报表 | GET | `/f/la/analytics/stops` | `?sn=&timeBegin=&timeEnd=&page=&size=` |
-| 行程报表 | GET | `/f/la/analytics/trips` | `?sn=&timeBegin=&timeEnd=&page=&size=` |
+| 功能 | 方法 | 路径 | 前端 |
+|------|------|------|------|
+| 历史轨迹 | GET | `/f/la/location` | ✅ |
+| 有轨迹日期 | GET | `/f/la/location/dates` | ✅ `getTrackDates` |
+| 停留报表 | GET | `/f/la/analytics/stops` | ✅ |
+| 行程报表 | GET | `/f/la/analytics/trips` | ✅ |
+| 里程统计 | GET | `/f/la/analytics/distance` | ✅ `getAnalyticsDistance` |
+| 超速点 | GET | `/f/la/analytics/overspeed` | ✅ `getAnalyticsOverspeed` |
 
 ### 3. 围栏（family）
 
-| 功能 | 方法 | 路径 | 参数变化 |
-|------|------|------|----------|
-| 围栏列表 | POST | `/f/la/fence/get` | body: `{ sn, limitSize?, lastSfid? }`（**已移除 GET ?deviceId=**） |
-| 添加围栏 | POST | `/f/la/fence/add` | body: `{ sn, fence: {...} }` |
-
-### 4. 设备详情（legacy / iotdoc 通道）
-
-| 功能 | 方法 | 路径 | 说明 |
+| 功能 | 方法 | 路径 | 前端 |
 |------|------|------|------|
-| 设备详情 | GET | `/f/la/iotdoc/device/detail?sn=` | 旧版仍走 iotdoc，**不是** `/f/la/device/{sn}` |
+| 围栏列表 | POST | `/f/la/fence/get` | ✅ `{ sn }` |
+| 添加围栏 | POST | `/f/la/fence/add` | ✅ |
+| 修改围栏 | POST | `/f/la/fence/modify` | ✅ `modifyFence` |
+| 删除围栏 | POST | `/f/la/fence/del` | ✅ `deleteFence` |
 
-### 5. 管理台 B 端
+### 4. 告警 / 列表 / 分享
+
+| 功能 | 通道 | 前端 |
+|------|------|------|
+| 设备详情 | legacy iotdoc `GET /iotdoc/device/detail?sn=` | ✅ |
+| 设备列表 | legacy `GET /device/all` | ✅ |
+| 告警列表 | legacy POST `/iotdoc/alarm/get`；family GET `/alarm?sn=` | ✅ `getAlarmList` |
+| 创建分享 | POST `/share/create` | ✅ |
+| 撤销分享 | POST `/share/revoke` | ✅ `revokeShareLink` |
+| 查看分享 | GET `/share/view?token=` | ✅ `getShareView` |
+
+### 5. 页面已对接
+
+| 页面 | 变更 |
+|------|------|
+| `pages/share/view.vue` | 经 `getShareView` 传 `token` |
+| `pages/message/message.vue` | 经 `getAlarmList` 双通道 |
+| `pages/workmode/workmode.vue` | 保存调 `setLocationMode` |
+| `pages/fence/create.vue` | 编辑调 `modifyFence` |
+| `pages/device/info.vue` | 加载 `getDeviceDetail` + SIM |
+
+### 6. 管理台 B 端
 
 | 功能 | 变更 |
 |------|------|
-| `POST api/la/device/run-info` | body 改为 `{ sns: string[] }`（`luan-web` 已改） |
+| `POST api/la/device/run-info` | ✅ body `{ sns }` |
 
 ---
 
-## 二、后端已更新、前端尚未对接（⚠️ 待办）
+## 二、后端已有、前端仍待办（⬜）
 
-### 1. 设备 settings（family 专用，endpoints 未收录）
+### 1. 仅 API 已封装、页面未使用
 
-| 功能 | 方法 | 后端路径 | 前端现状 |
-|------|------|----------|----------|
-| 定位模式保存 | PUT | `/f/la/device/{sn}/loc-mode` | 仅实现 GET；`workmode.vue` 保存仍写本地 storage |
-| 定时开关机读 | GET | `/f/la/device/{sn}/timer-switch` | 未实现 |
-| 定时开关机写 | PUT | `/f/la/device/{sn}/timer-switch` | 未实现 |
-| 关闭定时开关机 | DELETE | `/f/la/device/{sn}/timer-switch` | 未实现 |
-| 终端参数只读 | GET | `/f/la/device/{sn}/terminal-params` | 未实现；`device/info.vue` 未拉详情 |
-| 设备换组 | PUT | `/f/la/device/{sn}/group` | 未实现 |
+| 功能 | 前端 API | 待接页面 |
+|------|----------|----------|
+| 删除围栏 UI | `deleteFence` | `fence/fence.vue` 长按删除等 |
+| 轨迹日期选择 | `getTrackDates` | `track/track.vue` |
+| 里程 / 超速报表 | `getAnalyticsDistance` / `getAnalyticsOverspeed` | 报表页扩展 |
+| 定时开关机 | `get/set/deleteTimerSwitch` | 远程设置 / 工作模式 |
+| 分享撤销 | `revokeShareLink` | 分享管理 |
 
-**legacy 对应（iotdoc，仍可用）：**
+### 2. 尚未封装
 
-| 功能 | 路径 |
-|------|------|
-| 定时开关 | `/f/la/iotdoc/timerswitch/get|set|close` |
-| 定位模式写 | `/f/la/iotdoc/loc/set-loc-mode` |
-| 周期定位等 | `/f/la/iotdoc/loc/*` |
-
-### 2. 轨迹 / 分析（family）
-
-| 功能 | 方法 | 后端路径 | 前端现状 |
-|------|------|----------|----------|
-| 有轨迹日期 | GET | `/f/la/location/dates?sn=` | 未实现（legacy 有 `POST /iotdoc/location/track-dates`） |
-| 里程统计 | GET | `/f/la/analytics/distance?sn=` | 未实现 |
-| 超速点 | GET | `/f/la/analytics/overspeed?sn=` | 未实现 |
-
-### 3. 围栏（family）
-
-| 功能 | 方法 | 后端路径 | 前端现状 |
-|------|------|----------|----------|
-| 修改围栏 | POST | `/f/la/fence/modify` | `fence/create.vue` 提示「编辑围栏接口待对接」 |
-| 删除围栏 | POST | `/f/la/fence/del` | body: `{ sn, fenceId }`，未实现 |
-| 批量删除 | POST | `/f/la/fence/batch-del` | body: `{ sn, fenceIds }`，未实现 |
-| 绑/解绑设备 | POST | `/f/la/fence/bind-devices`、`/unbind-devices` | 未实现 |
-| 点位判定 | GET | `/f/la/fence/check-point?sn=&lat=&lng=` | 未实现 |
-
-### 4. 告警（family vs legacy 分叉）
-
-| 通道 | 方法 | 路径 | 前端现状 |
-|------|------|------|----------|
-| **legacy** | POST | `/f/la/iotdoc/alarm/get` | `user.js` → `getAlarmList`，`message.vue` 在用 |
-| **family** | GET | `/f/la/alarm?sn=&page=&size=` | **未实现**；family 模式下消息页仍调 iotdoc |
-| family 确认 | POST | `/f/la/alarm/{id}/ack` | 未实现 |
-| family 删除 | DELETE | `/f/la/alarm/{id}` | 未实现 |
-| family 最新 | GET | `/f/la/alarm/latest?sn=` | 未实现 |
-
-### 5. 分享
-
-| 功能 | 方法 | 路径 | 前端现状 |
-|------|------|------|----------|
-| 创建分享 | POST | `/f/la/share/create` | ✅ body `{ sn, ttlHours? }` 已对接 |
-| 撤销分享 | POST | `/f/la/share/revoke` | 未实现 |
-| 查看分享 | GET | `/f/la/share/view?token=` | ⚠️ **参数名不一致**，见第三节 |
-
-### 6. 设备列表（legacy 路径注释 vs 实现）
-
-| 说明 | endpoints 注释 | 实际 endpoints | 后端 |
-|------|----------------|----------------|------|
-| legacy 列表 | 注释写「不分页 `/all`」 | 配置为 `/f/la/device` | `GET /f/la/device/all` 返回简要列表；`GET /f/la/device` 为分页 |
-
-**建议：** legacy 模式 `getDeviceList` 应改调 `/f/la/device/all`，或确认分页 GET 行为是否符合预期。
+| 功能 | 方法 | 后端路径 |
+|------|------|----------|
+| 告警确认 | POST | `/f/la/alarm/{id}/ack` |
+| 告警删除 | DELETE | `/f/la/alarm/{id}` |
+| 最新告警 | GET | `/f/la/alarm/latest?sn=` |
+| 围栏批量删除 | POST | `/f/la/fence/batch-del` |
+| 围栏绑/解绑设备 | POST | `/f/la/fence/bind-devices`、`/unbind-devices` |
+| 点位判定 | GET | `/f/la/fence/check-point?sn=` |
+| 设备换组 | PUT | `/f/la/device/{sn}/group` |
 
 ---
 
-## 三、已知参数 / 路径不一致（🐛 需修复）
+## 三、已知问题（🐛）
 
-| 接口 | 后端要求 | 前端当前 | 位置 |
-|------|----------|----------|------|
-| 查看分享定位 | `GET /f/la/share/view?**token**=` | 传 `{ shareToken }` | `device.js` → `getShareView`；`pages/share/view.vue` |
-| legacy 设备列表 | 推荐 `GET /f/la/device/all` | `GET /f/la/device`（与 family 同路径） | `endpoints.js` + `getDeviceList` |
+| 接口 | 状态 | 说明 |
+|------|------|------|
+| 查看分享定位 | ✅ 已修复 | 已改为 `?token=` |
+| legacy 设备列表 | ✅ 已修复 | 已改 `/f/la/device/all` |
+| legacy 工作模式保存 | ⚠️ 部分 | `workmode.vue` 保存走 family PUT；legacy 需 iotdoc `set-loc-mode` 专用 params |
+| legacy 围栏创建 params.simei | ⚠️ 待清理 | 应只用顶层 `sn` |
 
 ---
 
@@ -150,71 +153,49 @@ JT808 详情/列表返回 **LaDeviceItemDto**，与 iotdoc `DeviceGetDetailResp`
 | `imei` | `sn` | 映射为展示用 IMEI |
 | `state` | `onlineStatus`（0/1） | 映射为 `e_line_on` / `e_line_down` |
 | `power` | `batteryPercent` | 直接映射 |
-| `last_com_time` | `lastSeenTime`（`yyyy-MM-dd HH:mm:ss` 字符串） | 转为 Unix 秒 |
+| `last_com_time` | `lastSeenTime`（字符串） | 转为 Unix 秒 |
 | `last_pos.wgs` | `lastLat,lastLng` | 拼成 `"lat,lng"` |
 | `deviceId` | `id` | 仅内部保留，**请求不再使用** |
 
-iotdoc 详情仍保留：`last_pos`（JSON 字符串）、`state`（`e_line_on/down/sleep`）、`last_com_time`（Unix 秒）等原字段。
+告警 family 通道经 `mapAlarmToIotdoc()` 转为 message 页兼容字段：`alarm_name`、`time`、`imei`。
 
 ---
 
-## 五、iotdoc（legacy）请求约定（后端强制）
+## 五、iotdoc（legacy）请求约定
 
-来自 `LaIotdocFrontApiNotes`：
-
-- **只传顶层 `sn`**（本系统绑定的 SN/IMEI）
-- **`params` 内禁止传 `simei`**，后端会按 `sn` 查库并注入第三方 simei
-- 围栏报警字段推荐 `fence_switch`（`e_fence_in/out/in_out/close`），传 `alarm` 也会映射
-
-前端 `buildFenceCreateParams` 里若仍带 `simei` 数组，legacy 模式下可能被后端忽略或覆盖，建议统一改为顶层 `sn`。
+- **只传顶层 `sn`**
+- **`params` 内禁止传 `simei`**
+- 围栏报警字段推荐 `fence_switch`，传 `alarm` 也会映射
 
 ---
 
 ## 六、双通道速查（C 端 App）
 
-| 能力 | legacy（旧版 / iotdoc） | family（新版 / JT808） |
-|------|-------------------------|------------------------|
+| 能力 | legacy | family |
+|------|--------|--------|
+| 设备列表 | GET `/device/all` | GET `/device?page=` |
 | 设备详情 | GET `/iotdoc/device/detail?sn=` | GET `/device/{sn}` |
-| 设备配置 | POST `/iotdoc/device/get-config` | GET `/device/{sn}/profile` |
-| 写配置 | POST `/iotdoc/device/set-config` | PUT `/device/{sn}/profile` |
-| 轨迹 | POST `/iotdoc/location/query` | GET `/location?sn=` |
-| 停留报表 | POST `/iotdoc/location/ppoint-summary` | GET `/analytics/stops?sn=` |
-| 行程报表 | POST `/iotdoc/location/pdistance` | GET `/analytics/trips?sn=` |
-| 操作日志 | POST `/iotdoc/device/get-log` | GET `/device/op-logs?sn=` |
-| 定位模式 | POST `/iotdoc/loc/get-loc-mode` | GET `/device/{sn}/loc-mode` |
-| 实时追踪 | POST `/iotdoc/location/tracking` | POST `/device/{sn}/tracking` |
-| 围栏列表 | POST `/iotdoc/fence/get` | POST `/fence/get` `{ sn }` |
 | 告警 | POST `/iotdoc/alarm/get` | GET `/alarm?sn=` |
-| SIM | POST `/iotdoc/sim/*` | 同左（两通道共用 iotdoc SIM） |
+| 定位模式写 | POST `/iotdoc/loc/set-loc-mode` | PUT `/device/{sn}/loc-mode` |
+| 定时开关 | POST `/iotdoc/timerswitch/*` | GET/PUT/DELETE `/device/{sn}/timer-switch` |
 
-切换方式：`src/common/device-api-mode.js`（本地 storage `deviceApiMode`：`legacy` / `family`）。
-
----
-
-## 七、B 端管理台额外变更（luan-web）
-
-除 `run-info` 外，B 端设备子资源路径与 C 端 family 一致，均为 `/{sn}/...`：
-
-- `GET api/la/device/{sn}` 详情
-- `GET|PUT api/la/device/{sn}/profile`
-- `GET|PUT api/la/device/{sn}/loc-mode`
-- `GET|PUT|DELETE api/la/device/{sn}/timer-switch`
-- `POST api/la/device/{sn}/tracking`
-- `PUT api/la/device/{sn}/group`
-
-管理台若仍有按 `deviceId` 拼 URL 的页面，需逐一改为 `sn`。
+切换：`src/common/device-api-mode.js`（`legacy` / `family`）。
 
 ---
 
-## 八、建议修复优先级
+## 七、B 端管理台（luan-web）
 
-1. **P0** — `getShareView` 查询参数改为 `token`（分享页不可用）
-2. **P1** — family 模式下 `getAlarmList` 改调 `GET /f/la/alarm?sn=`
-3. **P1** — legacy `getDeviceList` 确认是否改 `/f/la/device/all`
-4. **P2** — 补充 `setLocationMode`（PUT loc-mode）、围栏 modify/del
-5. **P2** — `device/info.vue` 对接详情或 `terminal-params`
-6. **P3** — 轨迹日期、里程/超速分析、定时开关机 family 接口
+设备子资源均为 `/{sn}/...`；`run-info` 已改为 `{ sns }`。其余管理页若仍用 `deviceId` 拼 URL 需逐一排查。
 
 ---
 
-*文档生成依据：后端 `luan/eladmin-system/.../luanfront/rest/**` 与前端 `src/api/**` 静态对照。Swagger 在线文档：`http://{host}:8000/doc.html`*
+## 八、变更日志
+
+| 日期 | 内容 |
+|------|------|
+| 2026-06-18 | 初版：sn 字段一致性对照 |
+| 2026-06-18 | P0–P3 逐步适配：分享 token、告警/列表双通道、loc-mode、围栏 modify、info 页、扩展 API |
+
+---
+
+*Swagger：`http://{host}:8000/doc.html`*

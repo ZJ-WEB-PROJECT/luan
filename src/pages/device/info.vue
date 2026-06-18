@@ -97,45 +97,87 @@
 </template>
 
 <script>
+import dayjs from 'dayjs'
 import { THEME_GREEN } from '@/common/theme.js'
 import { staticUrl } from '@/common/assets.js'
-const DEFAULT_ICCID = '89860840102490118041'
+import { getDeviceDetail, getSimDetail } from '@/api/device'
+
+const STORAGE_KEY = 'currentDevice'
+
+function formatDeviceStatus(res) {
+  if (res?.state === 'e_line_sleep') return '静止'
+  if (res?.state === 'e_line_down' || res?.onlineStatus === 0) return '离线'
+  if (res?.state === 'e_line_on' || res?.onlineStatus === 1) return '在线'
+  return res?.status || '离线'
+}
 
 export default {
   data() {
     return {
       THEME_GREEN,
       carImg: staticUrl('/static/car.png'),
+      deviceSn: '',
       form: {
-        deviceName: '15070055007',
-        deviceNo: '15070005007',
-        model: 'JSK1',
-        status: '离线',
-        locateTime: '2026/05/21 17:47:18',
+        deviceName: '',
+        deviceNo: '',
+        model: '-',
+        status: '-',
+        locateTime: '-',
         simNo: '-',
-        iccid: DEFAULT_ICCID,
+        iccid: '-',
         contact: '',
         contactPhone: '',
-        address: '江西省九江市濂溪区前进西路靠近安泰汽车检测',
-        coordinate: '115.976879,29.680463',
+        address: '-',
+        coordinate: '-',
         iconLabel: '默认',
         lbsOn: true,
       },
     }
   },
   onLoad(options) {
-    if (options.deviceId) {
-      this.form.deviceNo = options.deviceId
-      this.form.deviceName = options.deviceId
-    }
+    const dev = uni.getStorageSync(STORAGE_KEY)
+    this.deviceSn = dev?.sn || options.deviceId || ''
     if (options.updateTime) {
       this.form.locateTime = decodeURIComponent(options.updateTime)
     }
     this.loadSaved()
+    this.loadDetail()
   },
   methods: {
     storageKey() {
-      return `device_info_${this.form.deviceNo}`
+      return `device_info_${this.form.deviceNo || this.deviceSn}`
+    },
+    async loadDetail() {
+      if (!this.deviceSn) return
+      try {
+        const res = await getDeviceDetail({ sn: this.deviceSn })
+        const lastPos = res.last_pos || {}
+        const sn = res.imei || res.sn || this.deviceSn
+        this.form.deviceNo = sn
+        this.form.deviceName = res.alias || sn
+        this.form.model = res.model || res.jtDeviceModel || res.ver || '-'
+        this.form.status = formatDeviceStatus(res)
+        if (res.last_com_time) {
+          this.form.locateTime = dayjs.unix(Number(res.last_com_time)).format('YYYY/MM/DD HH:mm:ss')
+        }
+        if (lastPos.wgs) {
+          const parts = String(lastPos.wgs).split(',')
+          if (parts.length >= 2) {
+            this.form.coordinate = `${parts[1]},${parts[0]}`
+          }
+        }
+        this.form.address = lastPos.addr || res.address || '-'
+        if (res.iccid) this.form.iccid = res.iccid
+        try {
+          const sim = await getSimDetail({ sn: this.deviceSn })
+          if (sim?.iccid) this.form.iccid = sim.iccid
+          if (sim?.sim_no ?? sim?.simNo) this.form.simNo = sim.sim_no ?? sim.simNo
+        } catch {
+          // SIM 仅 iotdoc 通道可用，忽略失败
+        }
+      } catch (e) {
+        uni.$u?.toast?.(e?.message || '加载设备信息失败')
+      }
     },
     loadSaved() {
       const saved = uni.getStorageSync(this.storageKey())

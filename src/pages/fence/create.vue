@@ -92,6 +92,7 @@ import { DEFAULT_MAP_CENTER, DEFAULT_MAP_SCALE } from '@/common/amap-config'
 import {
   buildFenceCreateParams,
   addFence,
+  modifyFence,
   getFenceList,
   normalizeFenceList,
 } from '@/api/device'
@@ -363,7 +364,24 @@ export default {
       }
 
       if (this.editId) {
-        uni.$u.toast('编辑围栏接口待对接')
+        try {
+          const payload = buildFenceCreateParams({
+            name: this.form.name,
+            type: this.fenceType,
+            mapCenter: this.mapCenter,
+            radius: this.form.radius,
+            polygonPoints: this.polygonPoints,
+            region: this.form.region,
+            alarm: this.form.alarm,
+          })
+          payload.sn = sn
+          payload.fenceId = this.editId
+          await modifyFence(payload)
+          uni.$u.toast('保存成功')
+          setTimeout(() => uni.navigateBack(), 500)
+        } catch (err) {
+          uni.$u.toast(err?.message || '保存失败')
+        }
         return
       }
 

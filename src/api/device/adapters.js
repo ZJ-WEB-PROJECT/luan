@@ -262,6 +262,26 @@ export function normalizeDeviceDetail(res) {
 }
 
 
+/** LaAlarmItemDto → iotdoc 告警列表字段（message 页兼容） */
+export function mapAlarmToIotdoc(item) {
+  const raw = item || {}
+  let time = 0
+  const ts = raw.deviceTime ?? raw.time ?? raw.alarm_time
+  if (ts != null) {
+    time = typeof ts === 'number'
+      ? (ts > 1e12 ? Math.floor(ts / 1000) : ts)
+      : dateTimeToUnix(ts)
+  }
+  return {
+    id: raw.id,
+    alarm_name: raw.alarm_name ?? raw.alarmType ?? raw.alarm_type ?? '告警',
+    time,
+    imei: raw.imei ?? raw.sn ?? '',
+    raw,
+  }
+}
+
+
 export function mapStopToIotdoc(item) {
 
   const start = dateTimeToUnix(item?.startTime)
@@ -587,6 +607,12 @@ export function buildJtFenceSaveBody(payload = {}) {
     sn,
 
     fence: {
+
+      ...(payload.fenceId != null || payload.editId != null
+
+        ? { id: Number(payload.fenceId ?? payload.editId) }
+
+        : {}),
 
       name: String(params.name || '').trim(),
 

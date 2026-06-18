@@ -48,10 +48,8 @@ export function bindPhoneBySms(data) {
   return http.post('/f/la/auth/wechat/bind-phone/sms', data, { loading: true, auth: false })
 }
 
-/** 获取告警列表 */
-export function getAlarmList(data) {
-  return http.post('/f/la/iotdoc/alarm/get', data, { loading: true, auth: true })
-}
+/** 获取告警列表（双通道，见 device.js） */
+export { getAlarmList } from '@/api/device'
 
 /** 修改密码 */
 export function changePassword(data) {

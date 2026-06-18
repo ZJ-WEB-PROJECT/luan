@@ -66,7 +66,7 @@
 
 <script>
 import { THEME_GREEN } from '@/common/theme.js'
-import { getLocationMode } from '@/api/device.js'
+import { getLocationMode, setLocationMode, buildWorkModePayload } from '@/api/device.js'
 const INTERVAL_OPTIONS = [
   { name: '半分钟', value: '30s' },
   { name: '1分钟', value: '1m' },
@@ -158,18 +158,21 @@ export default {
       if (found) this.locateInterval = found.value
       this.showTimePicker = false
     },
-    onConfirm() {
+    async onConfirm() {
       const payload = {
         workMode: this.workMode,
         priorityMode: this.priorityMode,
         locateInterval: this.locateInterval,
       }
-      if (this.deviceId) {
-        uni.setStorageSync(this.storageKey(), payload)
+      if (!this.deviceId) return
+      uni.setStorageSync(this.storageKey(), payload)
+      try {
+        await setLocationMode(buildWorkModePayload({ sn: this.deviceId, ...payload }))
+        uni.$u.toast('保存成功')
+        setTimeout(() => uni.navigateBack(), 400)
+      } catch (e) {
+        uni.$u.toast(e?.message || '保存失败')
       }
-      // TODO: 对接工作模式保存接口
-      uni.$u.toast('保存成功')
-      setTimeout(() => uni.navigateBack(), 400)
     },
   },
 }

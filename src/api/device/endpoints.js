@@ -26,7 +26,7 @@ export const DEVICE_API_ENDPOINTS = {
 
   list: {
 
-    legacy: '/f/la/device',
+    legacy: '/f/la/device/all',
 
     family: '/f/la/device',
 
@@ -153,6 +153,78 @@ export const DEVICE_API_ENDPOINTS = {
     legacy: '/f/la/iotdoc/loc/get-loc-mode',
 
     family: '/f/la/device/{sn}/loc-mode',
+
+  },
+
+  locationModeSet: {
+
+    legacy: '/f/la/iotdoc/loc/set-loc-mode',
+
+    family: '/f/la/device/{sn}/loc-mode',
+
+  },
+
+  timerSwitch: {
+
+    legacy: '/f/la/iotdoc/timerswitch/get',
+
+    family: '/f/la/device/{sn}/timer-switch',
+
+  },
+
+  terminalParams: {
+
+    legacy: '/f/la/iotdoc/device/detail',
+
+    family: '/f/la/device/{sn}/terminal-params',
+
+  },
+
+  trackDates: {
+
+    legacy: '/f/la/iotdoc/location/track-dates',
+
+    family: '/f/la/location/dates',
+
+  },
+
+  analyticsDistance: {
+
+    legacy: '/f/la/iotdoc/location/pdistance',
+
+    family: '/f/la/analytics/distance',
+
+  },
+
+  analyticsOverspeed: {
+
+    legacy: '/f/la/iotdoc/location/pdistance',
+
+    family: '/f/la/analytics/overspeed',
+
+  },
+
+  alarmList: {
+
+    legacy: '/f/la/iotdoc/alarm/get',
+
+    family: '/f/la/alarm',
+
+  },
+
+  fenceModify: {
+
+    legacy: '/f/la/iotdoc/fence/modify',
+
+    family: '/f/la/fence/modify',
+
+  },
+
+  fenceDel: {
+
+    legacy: '/f/la/iotdoc/fence/del',
+
+    family: '/f/la/fence/del',
 
   },
 
