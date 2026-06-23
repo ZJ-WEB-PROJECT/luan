@@ -72,7 +72,7 @@
           <view v-for="(pkg, index) in currentPackages" :key="pkg.key" class="package-card"
             :class="packageCardClass(index)" @click="selectedIndex = index">
             <text class="package-card__name" :style="packageNameStyle(index)">{{ pkg.name }}</text>
-            <text class="package-card__price" :style="packageNameStyle(index)">¥{{ (pkg.discountPriceCent || pkg.priceCent) / 100 }}</text>
+            <text class="package-card__price" :style="packageNameStyle(index)">¥{{ pkg.discountPriceCent / 100 }}</text>
             <text v-if="pkg.discountPriceCent" :style="packageNameStyle(index)" class="package-card__origin">¥{{ pkg.priceCent / 100 }}</text>
           </view>
         </view>
@@ -223,7 +223,7 @@ export default {
     },
     selectedPrice() {
       const pkg = this.currentPackages[this.selectedIndex] 
-      return pkg?.priceCent / 100 ?? 0
+      return pkg?.discountPriceCent / 100 ?? 0
     },
     themeColor() {
       const map = { blue: '#4a9eff', red: '#e74c3c', yellow: '#f1c40f' }
@@ -292,7 +292,7 @@ export default {
       if (!pkg) return
       uni.showModal({
         title: '确认支付',
-        content: `支付 ¥${pkg.priceCent / 100} 购买「${pkg.name}」？`,
+        content: `支付 ¥${pkg.discountPriceCent / 100} 购买「${pkg.name}」？`,
         success: async (res) => {
           if (!res.confirm) return
           try {

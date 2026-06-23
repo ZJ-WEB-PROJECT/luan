@@ -5,23 +5,8 @@
 
     <view class="form">
       <view class="form-field form-field--phone">
-        <input
-          v-model="mobile"
-          class="form-field__input"
-          type="number"
-          maxlength="11"
-          placeholder="手机号"
-          placeholder-class="form-field__placeholder"
-        />
-        <!-- #ifdef MP-WEIXIN -->
-        <button
-          class="wx-phone-btn"
-          open-type="getPhoneNumber"
-          @getphonenumber="onGetWechatPhone"
-        >
-          微信获取
-        </button>
-        <!-- #endif -->
+        <input v-model="mobile" class="form-field__input" type="number" maxlength="11" placeholder="手机号"
+          placeholder-class="form-field__placeholder" />
         <!-- #ifndef MP-WEIXIN -->
         <!-- <text class="wx-phone-link" @click="onGetWechatPhoneTip">微信获取</text> -->
         <!-- #endif -->
@@ -39,7 +24,11 @@
       <view class="submit-btn" @click="onBind">
         <text>绑定手机号</text>
       </view>
-
+      <!-- #ifdef MP-WEIXIN -->
+      <button class="submit-btn" open-type="getPhoneNumber" @getphonenumber="onGetWechatPhone">
+        <text>微信授权一键绑定</text>
+      </button>
+      <!-- #endif -->
       <text class="back-link" @click="goLogin">返回登录</text>
     </view>
   </view>
@@ -136,20 +125,17 @@ export default {
       }
 
       try {
-        const wxCode = await this.refreshWxCode()
-        const data = await getWechatPhoneNumber({
+        const data = await bindWechatPhone({
           phoneCode,
-          code: phoneCode,
-          wxCode,
+          bindTicket: this.wechatLoginResult.bindTicket,
         })
-        const mobile = String(data?.mobile || data?.phone || data?.phoneNumber || '')
-        if (!/^1\d{10}$/.test(mobile)) {
-          uni.$u.toast('未能解析手机号，请手动输入')
-          return
+        const token = data.token
+        if (token) {
+          setToken(token)
         }
-        this.mobile = mobile
-        this.wechatPhoneCode = phoneCode
-        uni.$u.toast('已获取微信绑定手机号')
+        uni.setStorageSync('userInfo', data.member)
+        uni.$u.toast('登录成功')
+        uni.switchTab({ url: '/pages/index/index' })
       } catch (err) {
         console.error('[bind] get wechat phone failed:', err)
       }

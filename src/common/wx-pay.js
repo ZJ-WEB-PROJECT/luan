@@ -35,9 +35,7 @@ function normalizeWxPayParams(data) {
  * @param {Object} data - createOrder 接口返回的支付参数
  */
 export function requestWechatPay(data) {
-  console.log(data)
   const params = normalizeWxPayParams(data)
-  console.log(params)
   return new Promise((resolve, reject) => {
     // #ifdef MP-WEIXIN
     const payOptions = {
@@ -49,6 +47,7 @@ export function requestWechatPay(data) {
       paySign: params.paySign,
       success: resolve,
       fail: (err) => {
+        console.log(err)
         const msg = err?.errMsg || ''
         if (/cancel/i.test(msg)) {
           reject(new Error('已取消支付'))
