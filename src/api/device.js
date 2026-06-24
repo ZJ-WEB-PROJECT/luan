@@ -1,7 +1,8 @@
 import dayjs from 'dayjs'
 import http from '@/common/request'
 import {
-  isFamilyDeviceApiMode,
+  isJt808DeviceApiMode,
+  getDeviceApiMode,
   resolveDeviceEndpoint,
   DEVICE_API_MODE,
 } from '@/common/device-api-mode'
@@ -24,17 +25,11 @@ import {
 
 const httpOpts = { auth: true }
 
-/** 获取设备列表 */
+/** 获取设备列表（统一 /all，dataChannel 区分 iotdoc / jt808） */
 export function getDeviceList(data = {}) {
-  if (isFamilyDeviceApiMode()) {
-    return http.get(resolveDeviceEndpoint('list'), {
-      page: data.page ?? 0,
-      size: data.size ?? 200,
-      groupId: data.groupId,
-      sn: data.sn,
-    }, { ...httpOpts, loading: false })
-  }
-  return http.get(resolveDeviceEndpoint('list'), {}, { ...httpOpts, loading: false })
+  return http.get(resolveDeviceEndpoint('list'), {
+    dataChannel: data.dataChannel ?? getDeviceApiMode(),
+  }, { ...httpOpts, loading: false })
 }
 
 /** 批量刷新设备运行状态（JT808） */
@@ -56,7 +51,7 @@ export function unbindDevice(data) {
 /** 设备详情 */
 export async function getDeviceDetail(data) {
   let res
-  if (isFamilyDeviceApiMode()) {
+  if (isJt808DeviceApiMode()) {
     const url = resolveDevicePath('detail', data)
     res = await http.get(url, {}, { ...httpOpts, loading: true })
   } else {
@@ -77,7 +72,7 @@ export function simRemoteSwitch(data) {
 
 /** 设备轨迹（单页） */
 export async function getDeviceTrack(data) {
-  if (!isFamilyDeviceApiMode()) {
+  if (!isJt808DeviceApiMode()) {
     return http.post(resolveDeviceEndpoint('trackQuery'), data, { ...httpOpts, loading: true })
   }
   const sn = resolveDeviceSn(data)
@@ -102,7 +97,7 @@ export async function getDeviceTrack(data) {
 
 /** 停留报表（PPoint / PPointSummary） */
 export async function getDeviceStay(data) {
-  if (!isFamilyDeviceApiMode()) {
+  if (!isJt808DeviceApiMode()) {
     return http.post(resolveDeviceEndpoint('staySummary'), data, { ...httpOpts, loading: false })
   }
   const sn = resolveDeviceSn(data)
@@ -121,7 +116,7 @@ export async function getDeviceStay(data) {
 
 /** 行程报表（PDistance） */
 export async function getDeviceTrip(data) {
-  if (!isFamilyDeviceApiMode()) {
+  if (!isJt808DeviceApiMode()) {
     return http.post(resolveDeviceEndpoint('tripSummary'), data, { ...httpOpts, loading: false })
   }
   const sn = resolveDeviceSn(data)
@@ -140,7 +135,7 @@ export async function getDeviceTrip(data) {
 
 /** 获取设备配置 */
 export async function getDeviceConfig(data) {
-  if (isFamilyDeviceApiMode()) {
+  if (isJt808DeviceApiMode()) {
     const url = resolveDevicePath('deviceConfigGet', data)
     return http.get(url, {}, { ...httpOpts, loading: false })
   }
@@ -149,7 +144,7 @@ export async function getDeviceConfig(data) {
 
 /** 立即定位 / 实时追踪 */
 export async function locationTracking(data) {
-  if (isFamilyDeviceApiMode()) {
+  if (isJt808DeviceApiMode()) {
     const url = resolveDevicePath('locationTracking', data)
     return http.post(url, {
       intervalSec: data.intervalTime ?? data.intervalSec ?? 10,
@@ -161,7 +156,7 @@ export async function locationTracking(data) {
 
 /** 下发设备指令 */
 export async function sendDeviceCmd(data) {
-  if (isFamilyDeviceApiMode()) {
+  if (isJt808DeviceApiMode()) {
     const sn = resolveDeviceSn(data)
     return http.post(resolveDeviceEndpoint('deviceCmd'), {
       sn,
@@ -175,7 +170,7 @@ export async function sendDeviceCmd(data) {
 
 /** 修改设备配置 */
 export async function setDeviceConfig(data) {
-  if (isFamilyDeviceApiMode()) {
+  if (isJt808DeviceApiMode()) {
     const url = resolveDevicePath('deviceConfigSet', data)
     const body = data.profile ?? data.params ?? data
     return http.put(url, body, { ...httpOpts, loading: true })
@@ -185,7 +180,7 @@ export async function setDeviceConfig(data) {
 
 /** 设备操作日志 */
 export async function getDeviceLog(data) {
-  if (!isFamilyDeviceApiMode()) {
+  if (!isJt808DeviceApiMode()) {
     return http.post(resolveDeviceEndpoint('deviceLog'), data, { ...httpOpts, loading: false })
   }
   const sn = resolveDeviceSn(data)
@@ -211,7 +206,7 @@ export async function getDeviceLog(data) {
 
 /** 获取定位模式 */
 export async function getLocationMode(data) {
-  if (isFamilyDeviceApiMode()) {
+  if (isJt808DeviceApiMode()) {
     const url = resolveDevicePath('locationMode', data)
     return http.get(url, {}, { ...httpOpts, loading: false })
   }
@@ -226,7 +221,7 @@ export async function setLocationMode(data) {
     alarmSwitch: data.alarmSwitch,
     indicator: data.indicator,
   }
-  if (isFamilyDeviceApiMode()) {
+  if (isJt808DeviceApiMode()) {
     const url = resolveDevicePath('locationModeSet', data)
     return http.put(url, body, { ...httpOpts, loading: true })
   }
@@ -261,17 +256,17 @@ export function buildWorkModePayload({ sn, workMode, locateInterval }) {
 
 /** 定时开关机读 */
 export async function getTimerSwitch(data) {
-  if (isFamilyDeviceApiMode()) {
+  if (isJt808DeviceApiMode()) {
     const url = resolveDevicePath('timerSwitch', data)
     return http.get(url, {}, { ...httpOpts, loading: false })
   }
   return http.post('/f/la/iotdoc/timerswitch/get', { sn: resolveDeviceSn(data) }, { ...httpOpts, loading: false })
 }
 
-/** 定时开关机写（family PUT / legacy POST set） */
+/** 定时开关机写（jt808 PUT / iotdoc POST set） */
 export async function setTimerSwitch(data) {
   const body = data.body ?? data
-  if (isFamilyDeviceApiMode()) {
+  if (isJt808DeviceApiMode()) {
     const url = resolveDevicePath('timerSwitch', data)
     return http.put(url, body, { ...httpOpts, loading: true })
   }
@@ -280,7 +275,7 @@ export async function setTimerSwitch(data) {
 
 /** 关闭定时开关机 */
 export async function deleteTimerSwitch(data) {
-  if (isFamilyDeviceApiMode()) {
+  if (isJt808DeviceApiMode()) {
     const url = resolveDevicePath('timerSwitch', data)
     return http.delete(url, {}, { ...httpOpts, loading: true })
   }
@@ -289,7 +284,7 @@ export async function deleteTimerSwitch(data) {
 
 /** 终端参数只读 */
 export async function getTerminalParams(data) {
-  if (isFamilyDeviceApiMode()) {
+  if (isJt808DeviceApiMode()) {
     const url = resolveDevicePath('terminalParams', data)
     return http.get(url, {}, { ...httpOpts, loading: false })
   }
@@ -300,7 +295,7 @@ export async function getTerminalParams(data) {
 /** 有轨迹的日期 */
 export async function getTrackDates(data) {
   const sn = resolveDeviceSn(data)
-  if (isFamilyDeviceApiMode()) {
+  if (isJt808DeviceApiMode()) {
     return http.get(resolveDeviceEndpoint('trackDates'), {
       sn,
       dateBegin: data.dateBegin ? unixToDateTime(data.dateBegin) : undefined,
@@ -313,7 +308,7 @@ export async function getTrackDates(data) {
 /** 里程统计 */
 export async function getAnalyticsDistance(data) {
   const sn = resolveDeviceSn(data)
-  if (isFamilyDeviceApiMode()) {
+  if (isJt808DeviceApiMode()) {
     return http.get(resolveDeviceEndpoint('analyticsDistance'), {
       sn,
       timeBegin: unixToDateTime(data.timeBegin),
@@ -328,7 +323,7 @@ export async function getAnalyticsOverspeed(data) {
   const sn = resolveDeviceSn(data)
   const page = Number(data.page) || 0
   const size = Number(data.size) || 20
-  if (isFamilyDeviceApiMode()) {
+  if (isJt808DeviceApiMode()) {
     const res = await http.get(resolveDeviceEndpoint('analyticsOverspeed'), {
       sn,
       timeBegin: unixToDateTime(data.timeBegin),
@@ -344,7 +339,7 @@ export async function getAnalyticsOverspeed(data) {
 
 /** 告警列表（双通道） */
 export async function getAlarmList(data = {}) {
-  if (!isFamilyDeviceApiMode()) {
+  if (!isJt808DeviceApiMode()) {
     return http.post(resolveDeviceEndpoint('alarmList'), data, { ...httpOpts, loading: true })
   }
   const sn = resolveDeviceSn(data)
@@ -431,7 +426,7 @@ export function normalizeTripReportItem(item) {
 
 /** 获取围栏列表 */
 export async function getFenceList(data) {
-  if (!isFamilyDeviceApiMode()) {
+  if (!isJt808DeviceApiMode()) {
     return http.post(resolveDeviceEndpoint('fenceGet'), data, { ...httpOpts, loading: false })
   }
   const sn = resolveDeviceSn(data)
@@ -656,7 +651,7 @@ export function normalizeFenceList(res) {
 
 /** 添加围栏 */
 export async function addFence(data) {
-  if (isFamilyDeviceApiMode()) {
+  if (isJt808DeviceApiMode()) {
     const body = buildJtFenceSaveBody(data)
     return http.post(resolveDeviceEndpoint('fenceAdd'), body, { ...httpOpts, loading: true })
   }
@@ -666,7 +661,7 @@ export async function addFence(data) {
 
 /** 修改围栏 */
 export async function modifyFence(data) {
-  if (isFamilyDeviceApiMode()) {
+  if (isJt808DeviceApiMode()) {
     const body = buildJtFenceSaveBody(data)
     return http.post(resolveDeviceEndpoint('fenceModify'), body, { ...httpOpts, loading: true })
   }
@@ -678,7 +673,7 @@ export async function modifyFence(data) {
 export async function deleteFence(data) {
   const sn = resolveDeviceSn(data)
   const fenceId = Number(data.fenceId ?? data.id)
-  if (isFamilyDeviceApiMode()) {
+  if (isJt808DeviceApiMode()) {
     return http.post(resolveDeviceEndpoint('fenceDel'), { sn, fenceId }, { ...httpOpts, loading: true })
   }
   return http.post(resolveDeviceEndpoint('fenceDel'), { sn, fenceId, ...data }, { ...httpOpts, loading: true })
@@ -782,11 +777,11 @@ export async function fetchDeviceTrackAll({
   let mileageKm = 0
   let page = 0
   const maxPages = 50
-  const familyMode = isFamilyDeviceApiMode()
+  const jt808Mode = isJt808DeviceApiMode()
 
   while (!isFinish && page < maxPages) {
     const body = { sn, timeBegin, timeEnd, limitSize }
-    if (familyMode) {
+    if (jt808Mode) {
       body._trackPage = page
     } else if (lastTime > 0) {
       body.last_time = lastTime
@@ -814,7 +809,7 @@ export async function fetchDeviceTrackAll({
 
     all.push(...batch)
     isFinish = wrapped.is_finish
-    if (!familyMode) {
+    if (!jt808Mode) {
       lastTime = batch[batch.length - 1].time
     }
     page += 1

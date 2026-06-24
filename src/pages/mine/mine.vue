@@ -76,9 +76,9 @@ export default {
   },
   computed: {
     tools() {
-      const isFamily = this.deviceApiMode === DEVICE_API_MODE.FAMILY
+      const isJt808 = this.deviceApiMode === DEVICE_API_MODE.JT808
       return [
-        { key: 'apiMode', label: isFamily ? '切换旧版' : '切换新版', icon: 'reload' },
+        { key: 'apiMode', label: isJt808 ? '切换旧版' : '切换新版', icon: 'reload' },
         { key: 'service', label: '联系客服', icon: 'server-fill' },
         { key: 'feedback', label: '意见与建议', icon: 'email-fill' },
         { key: 'setting', label: '设置', icon: 'setting-fill' },
@@ -101,9 +101,9 @@ export default {
       this.deviceApiMode = mode
     },
     onToggleApiMode() {
-      const next = this.deviceApiMode === DEVICE_API_MODE.FAMILY
-        ? DEVICE_API_MODE.LEGACY
-        : DEVICE_API_MODE.FAMILY
+      const next = this.deviceApiMode === DEVICE_API_MODE.JT808
+        ? DEVICE_API_MODE.IOTDOC
+        : DEVICE_API_MODE.JT808
       uni.showModal({
         title: '切换接口版本',
         content: `确认切换到${getDeviceApiModeLabel(next)}？切换后将清空当前选中设备。`,

@@ -1,55 +1,26 @@
 <template>
   <view class="page">
-    <up-navbar
-      title="找回密码"
-      :bg-color="THEME_GREEN"
-      title-color="#fff"
-      left-icon="arrow-left"
-      left-icon-color="#fff"
-      :auto-back="true"
-      :placeholder="true"
-      :safe-area-inset-top="true"
-    ></up-navbar>
+    <up-navbar title="找回密码" :bg-color="THEME_GREEN" title-color="#fff" left-icon="arrow-left" left-icon-color="#fff"
+      :auto-back="true" :placeholder="true" :safe-area-inset-top="true"></up-navbar>
 
     <view class="form">
       <view class="form-field">
-        <input
-          v-model="phone"
-          class="form-field__input"
-          type="number"
-          maxlength="11"
-          placeholder="手机号"
-          placeholder-class="form-field__placeholder"
-        />
+        <input v-model="mobile" class="form-field__input" type="number" maxlength="11" placeholder="手机号"
+          placeholder-class="form-field__placeholder" />
       </view>
 
       <view class="form-field form-field--code">
-        <input
-          v-model="code"
-          class="form-field__input"
-          type="number"
-          maxlength="6"
-          placeholder="验证码"
-          placeholder-class="form-field__placeholder"
-        />
-        <text
-          class="form-field__code-btn"
-          :class="{ 'form-field__code-btn--disabled': codeCountdown > 0 }"
-          @click="onSendCode"
-        >
+        <input v-model="code" class="form-field__input" type="number" maxlength="6" placeholder="验证码"
+          placeholder-class="form-field__placeholder" />
+        <text class="form-field__code-btn" :class="{ 'form-field__code-btn--disabled': codeCountdown > 0 }"
+          @click="onSendCode">
           {{ codeCountdown > 0 ? `${codeCountdown}s` : '获取验证码' }}
         </text>
       </view>
 
       <view class="form-field">
-        <input
-          v-model="password"
-          class="form-field__input"
-          type="password"
-          password
-          placeholder="新密码"
-          placeholder-class="form-field__placeholder"
-        />
+        <input v-model="password" class="form-field__input" type="password" password placeholder="新密码"
+          placeholder-class="form-field__placeholder" />
       </view>
 
       <view class="submit-btn" @click="onReset">
@@ -62,13 +33,14 @@
 </template>
 
 <script>
+import { sendCode, resetPassword } from '@/api/user'
 import { THEME_GREEN } from '@/common/theme.js'
 
 export default {
   data() {
     return {
       THEME_GREEN,
-      phone: '15070005007',
+      mobile: '',
       code: '',
       password: '',
       codeCountdown: 0,
@@ -85,22 +57,26 @@ export default {
         this.codeTimer = null
       }
     },
-    onSendCode() {
+    async onSendCode() {
       if (this.codeCountdown > 0) return
-      if (!/^1\d{10}$/.test(this.phone)) {
+      if (!/^1\d{10}$/.test(this.mobile)) {
         uni.$u.toast('请输入正确手机号')
         return
       }
-      // TODO: 对接发送验证码接口
-      uni.$u.toast('验证码已发送')
-      this.codeCountdown = 60
-      this.codeTimer = setInterval(() => {
-        this.codeCountdown--
-        if (this.codeCountdown <= 0) this.clearCodeTimer()
-      }, 1000)
+      try {
+        await sendCode({ mobile: this.mobile, scene: 'resetpwd' })
+        uni.$u.toast('验证码已发送')
+        this.codeCountdown = 60
+        this.codeTimer = setInterval(() => {
+          this.codeCountdown--
+          if (this.codeCountdown <= 0) this.clearCodeTimer()
+        }, 1000)
+      } catch (e) {
+        console.error('[resetpwd] send code failed:', e)
+      }
     },
-    onReset() {
-      if (!/^1\d{10}$/.test(this.phone)) {
+    async onReset() {
+      if (!/^1\d{10}$/.test(this.mobile)) {
         uni.$u.toast('请输入正确手机号')
         return
       }
@@ -116,9 +92,14 @@ export default {
         uni.$u.toast('密码至少6位')
         return
       }
+      try {
+        await resetPassword({ mobile: this.mobile, code: this.code, newPassword: this.password })
+        uni.$u.toast('密码重置成功')
+        setTimeout(() => this.goLogin(), 400)
+      } catch (e) {
+        console.error('[resetpwd] reset password failed:', e)
+      }
       // TODO: 对接重置密码接口
-      uni.$u.toast('密码重置成功')
-      setTimeout(() => this.goLogin(), 400)
     },
     goLogin() {
       uni.navigateBack({

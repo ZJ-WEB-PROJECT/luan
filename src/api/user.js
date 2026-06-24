@@ -27,6 +27,11 @@ export function sendCode(data) {
   return http.post('/f/la/auth/phone/send-code', data, { loading: true, auth: false })
 }
 
+/** 重置密码 */
+export function resetPassword(data) {
+  return http.post('/f/la/auth/password/reset', data, { loading: true, auth: false })
+}
+
 
 /** 微信授权后绑定手机号 */
 export function bindWechatPhone(data) {

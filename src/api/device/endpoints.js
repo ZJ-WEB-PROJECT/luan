@@ -4,9 +4,9 @@
 
  *
 
- * - legacy: iotdoc 通道 → /f/la/iotdoc/**（第三方代理）
+ * - iotdoc: 旧版 iotdoc 通道 → /f/la/iotdoc/**（第三方代理）
 
- * - family: JT808 自建通道 → /f/la/device/**、/f/la/location/** 等
+ * - jt808: 新版 JT808 自建通道 → /f/la/device/**、/f/la/location/** 等
 
  *
 
@@ -22,225 +22,225 @@
 
 export const DEVICE_API_ENDPOINTS = {
 
-  /** 设备列表：legacy 不分页 /all，family 分页 GET /device */
+  /** 设备列表：统一 /all，通过 dataChannel 区分 iotdoc / jt808 */
 
   list: {
 
-    legacy: '/f/la/device/all',
+    iotdoc: '/f/la/device/all',
 
-    family: '/f/la/device',
+    jt808: '/f/la/device/all',
 
   },
 
   bind: {
 
-    legacy: '/f/la/device/bind',
+    iotdoc: '/f/la/device/bind',
 
-    family: '/f/la/device/bind',
+    jt808: '/f/la/device/bind',
 
   },
 
   unbind: {
 
-    legacy: '/f/la/device/unbind',
+    iotdoc: '/f/la/device/unbind',
 
-    family: '/f/la/device/unbind',
+    jt808: '/f/la/device/unbind',
 
   },
 
-  /** legacy: GET ?sn=  |  family: GET /{sn} */
+  /** iotdoc: GET ?sn=  |  jt808: GET /{sn} */
 
   detail: {
 
-    legacy: '/f/la/iotdoc/device/detail',
+    iotdoc: '/f/la/iotdoc/device/detail',
 
-    family: '/f/la/device/{sn}',
+    jt808: '/f/la/device/{sn}',
 
   },
 
   runInfo: {
 
-    legacy: '/f/la/device/run-info',
+    iotdoc: '/f/la/device/run-info',
 
-    family: '/f/la/device/run-info',
+    jt808: '/f/la/device/run-info',
 
   },
 
   simGet: {
 
-    legacy: '/f/la/iotdoc/sim/get',
+    iotdoc: '/f/la/iotdoc/sim/get',
 
-    family: '/f/la/iotdoc/sim/get',
+    jt808: '/f/la/iotdoc/sim/get',
 
   },
 
   simRemoteSwitch: {
 
-    legacy: '/f/la/iotdoc/sim/remote-switch',
+    iotdoc: '/f/la/iotdoc/sim/remote-switch',
 
-    family: '/f/la/iotdoc/sim/remote-switch',
+    jt808: '/f/la/iotdoc/sim/remote-switch',
 
   },
 
-  /** legacy: POST query  |  family: GET /location */
+  /** iotdoc: POST query  |  jt808: GET /location */
 
   trackQuery: {
 
-    legacy: '/f/la/iotdoc/location/query',
+    iotdoc: '/f/la/iotdoc/location/query',
 
-    family: '/f/la/location',
+    jt808: '/f/la/location',
 
   },
 
   staySummary: {
 
-    legacy: '/f/la/iotdoc/location/ppoint-summary',
+    iotdoc: '/f/la/iotdoc/location/ppoint-summary',
 
-    family: '/f/la/analytics/stops',
+    jt808: '/f/la/analytics/stops',
 
   },
 
   tripSummary: {
 
-    legacy: '/f/la/iotdoc/location/pdistance',
+    iotdoc: '/f/la/iotdoc/location/pdistance',
 
-    family: '/f/la/analytics/trips',
+    jt808: '/f/la/analytics/trips',
 
   },
 
   deviceConfigGet: {
 
-    legacy: '/f/la/iotdoc/device/get-config',
+    iotdoc: '/f/la/iotdoc/device/get-config',
 
-    family: '/f/la/device/{sn}/profile',
+    jt808: '/f/la/device/{sn}/profile',
 
   },
 
   deviceConfigSet: {
 
-    legacy: '/f/la/iotdoc/device/set-config',
+    iotdoc: '/f/la/iotdoc/device/set-config',
 
-    family: '/f/la/device/{sn}/profile',
+    jt808: '/f/la/device/{sn}/profile',
 
   },
 
   locationTracking: {
 
-    legacy: '/f/la/iotdoc/location/tracking',
+    iotdoc: '/f/la/iotdoc/location/tracking',
 
-    family: '/f/la/device/{sn}/tracking',
+    jt808: '/f/la/device/{sn}/tracking',
 
   },
 
   deviceCmd: {
 
-    legacy: '/f/la/iotdoc/device/cmd',
+    iotdoc: '/f/la/iotdoc/device/cmd',
 
-    family: '/f/la/device/cmd',
+    jt808: '/f/la/device/cmd',
 
   },
 
   deviceLog: {
 
-    legacy: '/f/la/iotdoc/device/get-log',
+    iotdoc: '/f/la/iotdoc/device/get-log',
 
-    family: '/f/la/device/op-logs',
+    jt808: '/f/la/device/op-logs',
 
   },
 
   locationMode: {
 
-    legacy: '/f/la/iotdoc/loc/get-loc-mode',
+    iotdoc: '/f/la/iotdoc/loc/get-loc-mode',
 
-    family: '/f/la/device/{sn}/loc-mode',
+    jt808: '/f/la/device/{sn}/loc-mode',
 
   },
 
   locationModeSet: {
 
-    legacy: '/f/la/iotdoc/loc/set-loc-mode',
+    iotdoc: '/f/la/iotdoc/loc/set-loc-mode',
 
-    family: '/f/la/device/{sn}/loc-mode',
+    jt808: '/f/la/device/{sn}/loc-mode',
 
   },
 
   timerSwitch: {
 
-    legacy: '/f/la/iotdoc/timerswitch/get',
+    iotdoc: '/f/la/iotdoc/timerswitch/get',
 
-    family: '/f/la/device/{sn}/timer-switch',
+    jt808: '/f/la/device/{sn}/timer-switch',
 
   },
 
   terminalParams: {
 
-    legacy: '/f/la/iotdoc/device/detail',
+    iotdoc: '/f/la/iotdoc/device/detail',
 
-    family: '/f/la/device/{sn}/terminal-params',
+    jt808: '/f/la/device/{sn}/terminal-params',
 
   },
 
   trackDates: {
 
-    legacy: '/f/la/iotdoc/location/track-dates',
+    iotdoc: '/f/la/iotdoc/location/track-dates',
 
-    family: '/f/la/location/dates',
+    jt808: '/f/la/location/dates',
 
   },
 
   analyticsDistance: {
 
-    legacy: '/f/la/iotdoc/location/pdistance',
+    iotdoc: '/f/la/iotdoc/location/pdistance',
 
-    family: '/f/la/analytics/distance',
+    jt808: '/f/la/analytics/distance',
 
   },
 
   analyticsOverspeed: {
 
-    legacy: '/f/la/iotdoc/location/pdistance',
+    iotdoc: '/f/la/iotdoc/location/pdistance',
 
-    family: '/f/la/analytics/overspeed',
+    jt808: '/f/la/analytics/overspeed',
 
   },
 
   alarmList: {
 
-    legacy: '/f/la/iotdoc/alarm/get',
+    iotdoc: '/f/la/iotdoc/alarm/get',
 
-    family: '/f/la/alarm',
+    jt808: '/f/la/alarm',
 
   },
 
   fenceModify: {
 
-    legacy: '/f/la/iotdoc/fence/modify',
+    iotdoc: '/f/la/iotdoc/fence/modify',
 
-    family: '/f/la/fence/modify',
+    jt808: '/f/la/fence/modify',
 
   },
 
   fenceDel: {
 
-    legacy: '/f/la/iotdoc/fence/del',
+    iotdoc: '/f/la/iotdoc/fence/del',
 
-    family: '/f/la/fence/del',
+    jt808: '/f/la/fence/del',
 
   },
 
   fenceGet: {
 
-    legacy: '/f/la/iotdoc/fence/get',
+    iotdoc: '/f/la/iotdoc/fence/get',
 
-    family: '/f/la/fence/get',
+    jt808: '/f/la/fence/get',
 
   },
 
   fenceAdd: {
 
-    legacy: '/f/la/iotdoc/fence/add',
+    iotdoc: '/f/la/iotdoc/fence/add',
 
-    family: '/f/la/fence/add',
+    jt808: '/f/la/fence/add',
 
   },
 
