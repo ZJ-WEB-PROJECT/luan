@@ -236,7 +236,25 @@ export function normalizeDeviceDetail(res) {
     const lastComTime = typeof lastComRaw === 'number'
       ? (lastComRaw > 1e12 ? Math.floor(lastComRaw / 1000) : lastComRaw)
       : dateTimeToUnix(lastComRaw)
-    return { ...res, last_pos: lastPos, last_com_time: lastComTime || res.last_com_time }
+    const wgs = typeof lastPos?.wgs === 'string' ? String(lastPos.wgs) : ''
+    const [latStr, lngStr] = wgs.split(',')
+    const latitude = Number(latStr)
+    const longitude = Number(lngStr)
+    const status = res.state === 'e_line_sleep'
+      ? '静止'
+      : res.state === 'e_line_down'
+        ? '离线'
+        : '在线'
+    return {
+      ...res,
+      last_pos: lastPos,
+      last_com_time: lastComTime || res.last_com_time,
+      latitude: Number.isFinite(latitude) ? latitude : res.latitude,
+      longitude: Number.isFinite(longitude) ? longitude : res.longitude,
+      address: (lastPos && lastPos.addr) || res.address || '',
+      status,
+      statusType: status === '在线' || status === '静止' ? 'static' : 'offline',
+    }
   }
 
   const lat = res.lastLat ?? res.latitude
@@ -250,12 +268,18 @@ export function normalizeDeviceDetail(res) {
   const lastComTime = typeof lastComRaw === 'number'
     ? (lastComRaw > 1e12 ? Math.floor(lastComRaw / 1000) : lastComRaw)
     : dateTimeToUnix(lastComRaw)
+  const status = online ? '在线' : '离线'
   return {
     ...res,
     deviceId: res.deviceId ?? res.id,
     imei: res.sn ?? res.imei,
     state: online ? 'e_line_on' : 'e_line_down',
+    status,
+    statusType: online ? 'static' : 'offline',
     power: res.batteryPercent ?? res.power ?? 0,
+    latitude: lat,
+    longitude: lng,
+    address: res.address || '',
     last_com_time: lastComTime,
     last_pos: lastPos,
   }

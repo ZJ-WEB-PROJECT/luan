@@ -110,7 +110,10 @@ export function getCurrentLocation() {
     uni.getLocation({
       type: 'gcj02',
       isHighAccuracy: true,
-      success: (res) => resolve({ longitude: res.longitude, latitude: res.latitude }),
+      success: (res) => {
+        console.log('res',res)
+        resolve({ longitude: res.longitude, latitude: res.latitude })
+      },
       fail: (err) => reject(err),
     })
   })

@@ -1,11 +1,5 @@
 <template>
-  <up-popup
-    :show="show"
-    mode="center"
-    round="24"
-    :close-on-click-overlay="true"
-    @close="onLater"
-  >
+  <up-popup :show="show" mode="center" round="24" :close-on-click-overlay="true" @close="onLater">
     <view class="modal">
       <view class="modal__icon-wrap">
         <view class="modal__bell">
@@ -21,11 +15,7 @@
 
       <text class="modal__subtitle">将为您提供以下服务</text>
       <view class="modal__list">
-        <text
-          v-for="(item, i) in benefits"
-          :key="i"
-          class="modal__list-item"
-        >{{ i + 1 }}. {{ item }}</text>
+        <text v-for="(item, i) in benefits" :key="i" class="modal__list-item">{{ i + 1 }}. {{ item }}</text>
       </view>
 
       <view class="modal__actions">
@@ -48,10 +38,7 @@ export default {
       type: Boolean,
       default: false,
     },
-    deviceId: {
-      type: String,
-      default: '',
-    },
+    deviceId: [String, Number],
   },
   emits: ['close', 'later', 'order'],
   data() {

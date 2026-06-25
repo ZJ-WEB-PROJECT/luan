@@ -37,7 +37,7 @@
         <view class="device-head">
           <view class="device-head__left" @click="goDeviceHome">
             <text class="device-id">{{ device.imei }}</text>
-            <view class="status-badge">
+            <view :class="['status-badge', device.state]">
               {{ device.status }}
             </view>
             <!-- <text class="status-duration">{{ device.statusDuration }}</text> -->
@@ -203,17 +203,32 @@ export default {
         this.$refs.amapRef?.locateDevice?.()
       })
     },
+    applyDeviceDistance(myPos) {
+      const lng = Number(this.device.longitude)
+      const lat = Number(this.device.latitude)
+      if (!Number.isFinite(lng) || !Number.isFinite(lat)) {
+        this.device.distance = '--'
+        return
+      }
+
+      const meters = getDistanceMeters(
+        myPos.longitude,
+        myPos.latitude,
+        lng,
+        lat
+      )
+      this.device.distance = formatDistance(meters)
+    },
     async updateDistanceFromMe() {
+      const [error, location] = await uni.getLocation({
+        type: 'gcj02',
+        geocode: true,
+      });
+      console.log('location',location,error)
       try {
         const pos = await getCurrentLocation()
         this.myLocation = pos
-        const meters = getDistanceMeters(
-          pos.longitude,
-          pos.latitude,
-          this.device.longitude,
-          this.device.latitude
-        )
-        this.device.distance = formatDistance(meters)
+        this.applyDeviceDistance(pos)
       } catch {
         /* 未授权定位时保留原距离 */
       }
@@ -267,17 +282,14 @@ export default {
     async loadCurrentDevice() {
       const saved = uni.getStorageSync(STORAGE_KEY)
       if (!saved || !saved.sn) return
-      console.log(saved)
       const res = await getDeviceDetail({ sn: saved.sn })
-      res.status = res.state === 'e_line_sleep' ? '静止' : res.state === 'e_line_down' ? '离线' : '在线'
-      const lastPos = res.last_pos || {}
-      if (lastPos.wgs) {
-        const pos = String(lastPos.wgs).split(',')
-        res.latitude = Number(pos[0])
-        res.longitude = Number(pos[1])
-        res.address = lastPos.addr || res.address
-      }
       this.device = res
+      console.log('res', this.myLocation)
+      if (this.myLocation?.longitude && this.myLocation?.latitude) {
+        this.applyDeviceDistance(this.myLocation)
+      } else if (!this.device.distance) {
+        this.device.distance = '--'
+      }
       this.refreshMapInfo()
       // const status = saved.status || '离线'
       // this.device = {
@@ -300,13 +312,7 @@ export default {
     },
     onMapLocated(pos) {
       this.myLocation = pos
-      const meters = getDistanceMeters(
-        pos.longitude,
-        pos.latitude,
-        this.device.longitude,
-        this.device.latitude
-      )
-      this.device.distance = formatDistance(meters)
+      this.applyDeviceDistance(pos)
     },
     onFastLocate() {
       this.$refs.amapRef?.locateDevice?.()
@@ -580,6 +586,18 @@ export default {
   border-radius: 20rpx;
   font-size: 22rpx;
   color: #fff;
+
+  &.e_line_on {
+    background: #3dba6e;
+  }
+
+  &.e_line_down {
+    background: #e74c3c;
+  }
+
+  &.e_line_sleep {
+    background: #999;
+  }
 }
 
 .status-duration {

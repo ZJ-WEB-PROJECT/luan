@@ -38,8 +38,13 @@
           </view>
           <text class="device-card__sn">SN:{{ item.sn }}</text>
         </view>
-        <view class="device-card__enter" @click.stop="onEnter(item)">
-          <text>进入</text>
+        <view class="device-card__actions">
+          <view class="device-card__action device-card__action--enter" @click.stop="onEnter(item)">
+            <text>进入</text>
+          </view>
+          <view class="device-card__action device-card__action--unbind" @click.stop="onUnbind(item)">
+            <text>解绑</text>
+          </view>
         </view>
       </view>
     </scroll-view>
@@ -54,7 +59,7 @@
 
 <script>
 import { THEME_GREEN } from '@/common/theme.js'
-import { getDeviceList, normalizeDeviceList } from '@/api/device'
+import { getDeviceList, normalizeDeviceList, unbindDevice } from '@/api/device'
 
 const STORAGE_KEY = 'currentDevice'
 
@@ -87,6 +92,8 @@ export default {
           if (!this.selectedSn) {
             this.selectedSn = list[0].sn
           }
+        }else{
+          this.deviceList = []
         }
       } catch (e) {
         console.error('[select] getDeviceList failed:', e)
@@ -106,6 +113,38 @@ export default {
       uni.navigateBack({
         fail: () => {
           uni.switchTab({ url: '/pages/index/index' })
+        },
+      })
+    },
+    onUnbind(item) {
+      uni.showModal({
+        title: '解绑设备',
+        content: `确认解绑设备 ${item.sn} 吗？`,
+        confirmColor: '#f56c6c',
+        success: async (res) => {
+          if (!res.confirm) return
+          try {
+            await unbindDevice({
+              sn: item.sn,
+              deviceId: item.deviceId ?? item.raw?.deviceId ?? item.raw?.id,
+            })
+
+            const current = uni.getStorageSync(STORAGE_KEY)
+            if (current?.sn === item.sn) {
+              uni.removeStorageSync(STORAGE_KEY)
+            }
+            uni.$u.toast('解绑成功')
+            await this.getDeviceList()
+            if (!this.deviceList.length) {
+              this.selectedSn = ''
+              return
+            }
+            if (this.selectedSn === item.sn) {
+              this.selectedSn = this.deviceList[0].sn
+            }
+          } catch (e) {
+            console.error('[select] unbindDevice failed:', e)
+          }
         },
       })
     },
@@ -230,17 +269,39 @@ $green-light: #e8f8f0;
   color: #999;
 }
 
-.device-card__enter {
-  flex-shrink: 0;
-  padding: 12rpx 28rpx;
-  background: $green-light;
-  border-radius: 32rpx;
+.device-card__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
+  align-items: flex-end;
+}
 
-  text {
-    font-size: 28rpx;
-    color: $green;
-    font-weight: 500;
-  }
+.device-card__action {
+  flex-shrink: 0;
+  padding: 10rpx 28rpx;
+  border-radius: 32rpx;
+}
+
+.device-card__action--enter {
+  background: $green-light;
+}
+
+.device-card__action--unbind {
+  background: #fff1f0;
+  border: 1rpx solid #ffd6d1;
+}
+
+.device-card__action--enter text {
+  color: $green;
+}
+
+.device-card__action--unbind text {
+  color: #f56c6c;
+}
+
+.device-card__action text {
+  font-size: 26rpx;
+  font-weight: 500;
 }
 
 .page-footer {

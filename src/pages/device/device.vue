@@ -15,12 +15,12 @@
           </view>
         </view>
         <text class="status-card__time">更新时间: {{ $u.timeFormat(deviceInfo.last_com_time, 'yyyy-mm-dd hh:MM:ss')
-          }}</text>
+        }}</text>
         <view class="status-card__signals">
           <view v-for="sig in signals" :key="sig.key" class="signal-item">
             <view class="signal-item__icon">
-              <view v-if="sig.key === 'gsm'" class="signal-bars">
-                <view v-for="n in 4" :key="n" class="signal-bars__bar"></view>
+              <view v-if="sig.key === 'signal_rate'" class="signal-bars">
+                <view v-for="n in deviceInfo[sig.key]/20" :key="n" class="signal-bars__bar"></view>
               </view>
               <image v-else-if="sig.key === 'satellite'" class="signal-satellite__image" :src="satelliteImg"
                 mode="widthFix"></image>
@@ -35,8 +35,8 @@
               </view>
             </view>
             <text class="signal-item__name">{{ sig.name }}</text>
-            <view class="signal-badge" v-if="sig.key === 'battery'" :class="'signal-badge--' + (deviceInfo.power <= 20 ? 'danger' : 'success')">
-              <text>{{ deviceInfo.power }}%</text>
+            <view class="signal-badge" :class="'signal-badge--' + (deviceInfo[sig.key] <= 20 ? 'danger' : 'success')">
+              <text>{{ deviceInfo[sig.key] }}%</text>
             </view>
           </view>
         </view>
@@ -72,9 +72,9 @@ export default {
       remotePowerOn: true,
       showShareModal: false,
       signals: [
-        { key: 'gsm', name: 'GSM', value: '优秀', badgeType: 'success' },
-        { key: 'satellite', name: '卫星信号', value: '优秀', badgeType: 'success' },
-        { key: 'battery', name: '电量', value: '0%', badgeType: 'danger' },
+        { key: 'signal_rate', name: 'GSM', badgeType: 'success' },
+        // { key: 'satellite', name: '卫星信号', badgeType: 'success' },
+        { key: 'power', name: '电量', badgeType: 'danger' },
       ],
       menuList: [
         { key: 'service', label: '增值服务', icon: 'gift-fill', bg: 'linear-gradient(135deg,#ff6b6b,#e53935)' },
@@ -89,7 +89,7 @@ export default {
         { key: 'workmode', label: '工作模式', icon: 'map', bg: 'linear-gradient(135deg,#ffd54f,#ffb300)' },
         { key: 'info', label: '设备信息', icon: 'file-text-fill', bg: 'linear-gradient(135deg,#ff6b6b,#e53935)' },
       ],
-    } 
+    }
   },
   onLoad(options) {
     this.deviceId = uni.getStorageSync('currentDevice').sn

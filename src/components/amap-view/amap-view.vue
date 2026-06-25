@@ -42,7 +42,7 @@ export default {
     latitude: { type: Number, default: 0 },
     longitude: { type: Number, default: 0 },
     scale: { type: Number, default: DEFAULT_MAP_SCALE },
-    markerTitle: { type: String, default: '设备位置' },
+    markerTitle: { type: [String, Number], default: '设备位置' },
     markerIcon: { type: String, default: '' },
     markerWidth: { type: Number, default: 28 },
     markerHeight: { type: Number, default: 36 },
@@ -236,7 +236,7 @@ export default {
       this.$nextTick(() => {
         const ctx = this.getMapContext()
         ctx?.moveToLocation?.({
-          success: () => {},
+          success: () => { },
           fail: (err) => {
             console.warn('[amap-view] moveToLocation failed:', err)
           },
