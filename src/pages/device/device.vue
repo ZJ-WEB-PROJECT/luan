@@ -61,7 +61,7 @@
 <script>
 import { THEME_GREEN } from '@/common/theme.js'
 import { staticUrl } from '@/common/assets.js'
-import { getDeviceDetail, simRemoteSwitch } from '@/api/device'
+import { getDeviceDetail, sendDeviceCmd } from '@/api/device'
 export default {
   data() {
     return {
@@ -101,8 +101,16 @@ export default {
       this.deviceInfo = res
     },
     async onPowerChange(val) {
-      await simRemoteSwitch({ sn: this.deviceId, state: val ? 'on' : 'off' })
-      uni.$u.toast(val ? '远程开机' : '远程关机')
+      try {
+        await sendDeviceCmd({
+          sn: this.deviceId,
+          type: val ? 'restart' : 'shutdown',
+        })
+        uni.$u.toast(val ? '远程开机' : '远程关机')
+      } catch (e) {
+        this.remotePowerOn = !val
+        uni.$u.toast(e?.message || '指令下发失败')
+      }
     },
     onShareOrder(deviceId) {
       const id = deviceId || this.deviceId

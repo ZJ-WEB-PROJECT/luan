@@ -72,9 +72,9 @@
         <view class="form-row" @click="onPickIcon">
           <text class="form-row__label">设备图标</text>
           <view class="form-row__icon">
-            <image :src="carImg" mode="widthFix" class="device-icon"></image>
+            <image :src="form.iconSrc" mode="aspectFit" class="device-icon"></image>
             <text class="form-row__value">{{ form.iconLabel }}</text>
-            <!-- <up-icon name="arrow-right" color="#ccc" size="14"></up-icon> -->
+            <up-icon name="arrow-right" color="#ccc" size="14"></up-icon>
           </view>
         </view>
 
@@ -93,6 +93,21 @@
         <text>保存</text>
       </view>
     </view>
+
+    <view v-if="iconPickerVisible" class="icon-mask" @click="closeIconPicker">
+      <view class="icon-picker" @click.stop>
+        <view
+          v-for="item in iconOptions"
+          :key="item.key"
+          class="icon-option"
+          :class="{ 'icon-option--active': form.iconKey === item.key }"
+          @click="onSelectIcon(item)"
+        >
+          <image :src="item.src" mode="aspectFit" class="icon-option__img"></image>
+          <text class="icon-option__label">{{ item.label }}</text>
+        </view>
+      </view>
+    </view>
   </view>
 </template>
 
@@ -100,9 +115,20 @@
 import dayjs from 'dayjs'
 import { THEME_GREEN } from '@/common/theme.js'
 import { staticUrl } from '@/common/assets.js'
-import { getDeviceDetail, getSimDetail } from '@/api/device'
+import { getDeviceDetail, getSimDetail, setDeviceConfig } from '@/api/device'
 
 const STORAGE_KEY = 'currentDevice'
+const ICON_OPTIONS = [
+  { key: 'default', label: '默认', src: staticUrl('/static/device-icons/default.svg') },
+  { key: 'car', label: '汽车', src: staticUrl('/static/device-icons/car.svg') },
+  { key: 'motorcycle', label: '摩托车', src: staticUrl('/static/device-icons/motorcycle.svg') },
+  { key: 'cow', label: '牛', src: staticUrl('/static/device-icons/cow.svg') },
+  { key: 'horse', label: '马', src: staticUrl('/static/device-icons/horse.svg') },
+  { key: 'sheep', label: '羊', src: staticUrl('/static/device-icons/sheep.svg') },
+  { key: 'man', label: '男人', src: staticUrl('/static/device-icons/man.svg') },
+  { key: 'woman', label: '女人', src: staticUrl('/static/device-icons/woman.svg') },
+  { key: 'pet', label: '宠物', src: staticUrl('/static/device-icons/pet.svg') },
+]
 
 function formatDeviceStatus(res) {
   if (res?.state === 'e_line_sleep') return '静止'
@@ -115,8 +141,9 @@ export default {
   data() {
     return {
       THEME_GREEN,
-      carImg: staticUrl('/static/car.png'),
       deviceSn: '',
+      iconPickerVisible: false,
+      iconOptions: ICON_OPTIONS,
       form: {
         deviceName: '',
         deviceNo: '',
@@ -129,6 +156,8 @@ export default {
         contactPhone: '',
         address: '-',
         coordinate: '-',
+        iconKey: 'default',
+        iconSrc: ICON_OPTIONS[0].src,
         iconLabel: '默认',
         lbsOn: true,
       },
@@ -186,7 +215,7 @@ export default {
       if (saved.contact !== undefined) this.form.contact = saved.contact
       if (saved.contactPhone !== undefined) this.form.contactPhone = saved.contactPhone
       if (saved.lbsOn !== undefined) this.form.lbsOn = saved.lbsOn
-      if (saved.iconLabel) this.form.iconLabel = saved.iconLabel
+      this.applyIconByKey(saved.iconKey || (saved.iconLabel === '默认' ? 'default' : ''), saved.iconLabel)
     },
     onCopy(text, label) {
       if (!text || text === '-') {
@@ -201,9 +230,28 @@ export default {
       })
     },
     onPickIcon() {
-      uni.$u.toast('设备图标')
+      this.iconPickerVisible = true
     },
-    onSave() {
+    closeIconPicker() {
+      this.iconPickerVisible = false
+    },
+    applyIconByKey(key, fallbackLabel = '') {
+      const matched = this.iconOptions.find((item) => item.key === key)
+      if (matched) {
+        this.form.iconKey = matched.key
+        this.form.iconLabel = matched.label
+        this.form.iconSrc = matched.src
+        return
+      }
+      if (fallbackLabel) this.form.iconLabel = fallbackLabel
+    },
+    onSelectIcon(item) {
+      this.form.iconKey = item.key
+      this.form.iconLabel = item.label
+      this.form.iconSrc = item.src
+      this.closeIconPicker()
+    },
+    async onSave() {
       if (!this.form.deviceName.trim()) {
         uni.$u.toast('请输入设备名称')
         return
@@ -213,12 +261,27 @@ export default {
         contact: this.form.contact.trim(),
         contactPhone: this.form.contactPhone.trim(),
         lbsOn: this.form.lbsOn,
+        iconKey: this.form.iconKey,
+        iconSrc: this.form.iconSrc,
         iconLabel: this.form.iconLabel,
       }
-      uni.setStorageSync(this.storageKey(), payload)
-      // TODO: 对接设备信息保存接口
-      uni.$u.toast('保存成功')
-      setTimeout(() => uni.navigateBack(), 400)
+      try {
+        await setDeviceConfig({
+          sn: this.deviceSn || this.form.deviceNo,
+          params: {
+            alias: payload.deviceName,
+            contact: payload.contact,
+            contactPhone: payload.contactPhone,
+            lbsOn: payload.lbsOn ? 1 : 0,
+            iconKey: payload.iconKey,
+          },
+        })
+        uni.setStorageSync(this.storageKey(), payload)
+        uni.$u.toast('保存成功')
+        setTimeout(() => uni.navigateBack(), 400)
+      } catch (e) {
+        uni.$u.toast(e?.message || '保存失败')
+      }
     },
   },
 }
@@ -316,8 +379,8 @@ export default {
 }
 
 .device-icon {
-  width: 48rpx;
-  height: 48rpx;
+  width: 80rpx;
+  height: 80rpx;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -346,5 +409,47 @@ export default {
     color: #fff;
     font-weight: 500;
   }
+}
+
+.icon-mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  z-index: 999;
+  display: flex;
+  align-items: flex-end;
+}
+
+.icon-picker {
+  width: 100%;
+  background: #fff;
+  max-height: 70vh;
+  overflow-y: auto;
+  border-top-left-radius: 20rpx;
+  border-top-right-radius: 20rpx;
+}
+
+.icon-option {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20rpx;
+  height: 96rpx;
+  border-bottom: 1rpx solid #eef1f3;
+}
+
+.icon-option--active {
+  background: #f2fbf6;
+}
+
+.icon-option__img {
+  width: 70rpx;
+  height: 70rpx;
+}
+
+.icon-option__label {
+  width: 140rpx;
+  font-size: 32rpx;
+  color: #3dba6e;
 }
 </style>

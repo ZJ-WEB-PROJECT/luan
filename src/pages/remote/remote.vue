@@ -3,7 +3,6 @@
   <view class="page">
 
     <up-navbar title="远程设置" :bg-color="THEME_GREEN" title-color="#fff" left-icon="arrow-left" left-icon-color="#fff"
-
       :auto-back="true" :placeholder="true" :safe-area-inset-top="true"></up-navbar>
 
 
@@ -11,7 +10,6 @@
     <view class="tabs">
 
       <view v-for="tab in tabs" :key="tab.key" class="tabs__item"
-
         :class="{ 'tabs__item--active': activeTab === tab.key }" @click="activeTab = tab.key">
 
         <text>{{ tab.label }}</text>
@@ -58,15 +56,7 @@
 
         <template v-if="pageList.length">
 
-          <view
-
-            v-for="(item, index) in pageList"
-
-            :key="logItemKey(item, index)"
-
-            class="record-card"
-
-          >
+          <view v-for="(item, index) in pageList" :key="logItemKey(item, index)" class="record-card">
 
             <text class="record-card__title">{{ item.remark }} ({{ item.imei }})</text>
 
@@ -468,7 +458,7 @@ export default {
 
           car_switch: {
 
-            [key]: 1,
+            [key]: this.config[key] ? 0 : 1,
 
           },
 
@@ -581,7 +571,6 @@ export default {
 
 
 <style lang="scss" scoped>
-
 .page {
 
   min-height: 100vh;
@@ -853,6 +842,4 @@ export default {
   color: #999;
 
 }
-
 </style>
-
