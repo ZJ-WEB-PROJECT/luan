@@ -20,6 +20,8 @@ import {
   mapJtFenceToIotdoc,
   buildJtFenceSaveBody,
   normalizeDeviceDetail,
+  enrichDeviceDetailAddress,
+  buildIotdocSetDetailParams,
   mapAlarmToIotdoc,
 } from '@/api/device/adapters'
 
@@ -57,7 +59,8 @@ export async function getDeviceDetail(data) {
   } else {
     res = await http.get(resolveDeviceEndpoint('detail'), { sn: resolveDeviceSn(data) }, { ...httpOpts, loading: true })
   }
-  return normalizeDeviceDetail(res)
+  const detail = normalizeDeviceDetail(res)
+  return enrichDeviceDetailAddress(detail)
 }
 
 /** 获取SIM卡信息（仅 iotdoc 通道） */
@@ -176,6 +179,38 @@ export async function setDeviceConfig(data) {
     return http.put(url, body, { ...httpOpts, loading: true })
   }
   return http.post(resolveDeviceEndpoint('deviceConfigSet'), data, { ...httpOpts, loading: true })
+}
+
+/** 组装设备详情保存体（别名、联系人、图标、LBS） */
+function buildDeviceDetailBody(data = {}) {
+  const src = data.detail ?? data.params ?? data
+  const lbsRaw = src.lbsSwitch ?? src.lbsOn
+  return {
+    alias: src.alias ?? src.deviceName ?? '',
+    contactName: src.contactName ?? src.contact ?? '',
+    contactPhone: src.contactPhone ?? '',
+    icon: src.icon ?? src.iconKey ?? '',
+    lbsSwitch: lbsRaw === true || lbsRaw === 1 || lbsRaw === '1' ? 1 : 0,
+  }
+}
+
+/**
+ * 修改设备详情（别名、联系人、联系人手机号、图标、LBS 开关）
+ * - iotdoc: POST /f/la/iotdoc/device/set-detail  { sn, params } → 三方 device.SetDetail
+ * - jt808:  PUT /f/la/device/{sn}/detail          { alias, contactName, contactPhone, icon, lbsSwitch }
+ */
+export async function setDeviceDetail(data) {
+  const sn = resolveDeviceSn(data)
+
+  if (isJt808DeviceApiMode()) {
+    const url = resolveDevicePath('deviceDetailSet', data)
+    return http.put(url, buildDeviceDetailBody(data), { ...httpOpts, loading: true })
+  }
+
+  return http.post(resolveDeviceEndpoint('deviceDetailSet'), {
+    sn,
+    params: buildIotdocSetDetailParams(data),
+  }, { ...httpOpts, loading: true })
 }
 
 /** 设备操作日志 */

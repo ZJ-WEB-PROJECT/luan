@@ -124,6 +124,16 @@ export const DEVICE_API_ENDPOINTS = {
 
   },
 
+  /** iotdoc: POST set-detail  |  jt808: PUT /{sn}/detail */
+
+  deviceDetailSet: {
+
+    iotdoc: '/f/la/iotdoc/device/set-detail',
+
+    jt808: '/f/la/device/{sn}/detail',
+
+  },
+
   locationTracking: {
 
     iotdoc: '/f/la/iotdoc/location/tracking',

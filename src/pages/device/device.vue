@@ -19,10 +19,10 @@
         <view class="status-card__signals">
           <view v-for="sig in signals" :key="sig.key" class="signal-item">
             <view class="signal-item__icon">
-              <view v-if="sig.key === 'signal_rate'" class="signal-bars">
-                <view v-for="n in deviceInfo[sig.key]/20" :key="n" class="signal-bars__bar"></view>
+              <view v-if="sig.key === 'gsmSignal'" class="signal-bars">
+                <view v-for="n in getSignalBarCount(sig.key)" :key="n" class="signal-bars__bar"></view>
               </view>
-              <image v-else-if="sig.key === 'satellite'" class="signal-satellite__image" :src="satelliteImg"
+              <image v-else-if="sig.key === 'bdSatellite'" class="signal-satellite__image" :src="satelliteImg"
                 mode="widthFix"></image>
               <view class="device-battery" v-else>
                 <view class="battery-icon" :class="{ 'battery-icon--low': deviceInfo.power <= 20 }">
@@ -72,8 +72,8 @@ export default {
       remotePowerOn: true,
       showShareModal: false,
       signals: [
-        { key: 'signal_rate', name: 'GSM', badgeType: 'success' },
-        // { key: 'satellite', name: '卫星信号', badgeType: 'success' },
+        { key: 'gsmSignal', name: 'GSM', badgeType: 'success' },
+        { key: 'bdSatellite', name: '卫星信号', badgeType: 'success' },
         { key: 'power', name: '电量', badgeType: 'danger' },
       ],
       menuList: [
@@ -96,6 +96,12 @@ export default {
     this.getDeviceInfo()
   },
   methods: {
+    getSignalBarCount(key) {
+      const val = Number(this.deviceInfo[key])
+      if (!Number.isFinite(val) || val <= 0) return 0
+      const bars = Math.floor(val / 20)
+      return Math.min(5, bars < 1 ? 1 : bars)
+    },
     async getDeviceInfo() {
       const res = await getDeviceDetail({ sn: this.deviceId })
       this.deviceInfo = res

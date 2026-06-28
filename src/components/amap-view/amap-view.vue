@@ -589,7 +589,7 @@ export default {
   display: flex;
   flex-direction: column;
   gap: 16rpx;
-  z-index: 2;
+  z-index: 999;
 }
 
 .amap-view__tool {

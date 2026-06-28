@@ -114,21 +114,11 @@
 <script>
 import dayjs from 'dayjs'
 import { THEME_GREEN } from '@/common/theme.js'
-import { staticUrl } from '@/common/assets.js'
-import { getDeviceDetail, getSimDetail, setDeviceConfig } from '@/api/device'
+import { DEVICE_ICON_OPTIONS, getDeviceInfoStorageKey } from '@/common/device-icons'
+import { getDeviceDetail, getSimDetail, setDeviceDetail } from '@/api/device'
 
 const STORAGE_KEY = 'currentDevice'
-const ICON_OPTIONS = [
-  { key: 'default', label: '默认', src: staticUrl('/static/device-icons/default.svg') },
-  { key: 'car', label: '汽车', src: staticUrl('/static/device-icons/car.svg') },
-  { key: 'motorcycle', label: '摩托车', src: staticUrl('/static/device-icons/motorcycle.svg') },
-  { key: 'cow', label: '牛', src: staticUrl('/static/device-icons/cow.svg') },
-  { key: 'horse', label: '马', src: staticUrl('/static/device-icons/horse.svg') },
-  { key: 'sheep', label: '羊', src: staticUrl('/static/device-icons/sheep.svg') },
-  { key: 'man', label: '男人', src: staticUrl('/static/device-icons/man.svg') },
-  { key: 'woman', label: '女人', src: staticUrl('/static/device-icons/woman.svg') },
-  { key: 'pet', label: '宠物', src: staticUrl('/static/device-icons/pet.svg') },
-]
+const ICON_OPTIONS = DEVICE_ICON_OPTIONS
 
 function formatDeviceStatus(res) {
   if (res?.state === 'e_line_sleep') return '静止'
@@ -174,7 +164,7 @@ export default {
   },
   methods: {
     storageKey() {
-      return `device_info_${this.form.deviceNo || this.deviceSn}`
+      return getDeviceInfoStorageKey(this.form.deviceNo || this.deviceSn)
     },
     async loadDetail() {
       if (!this.deviceSn) return
@@ -183,7 +173,11 @@ export default {
         const lastPos = res.last_pos || {}
         const sn = res.imei || res.sn || this.deviceSn
         this.form.deviceNo = sn
-        this.form.deviceName = res.alias || sn
+        this.form.deviceName = res.alias || res.deviceName || sn
+        this.form.contact = res.contactName || res.contact || ''
+        this.form.contactPhone = res.contactPhone || ''
+        if (res.lbsOn !== undefined) this.form.lbsOn = res.lbsOn
+        else if (res.lbsSwitch !== undefined) this.form.lbsOn = res.lbsSwitch === 1
         this.form.model = res.model || res.jtDeviceModel || res.ver || '-'
         this.form.status = formatDeviceStatus(res)
         if (res.last_com_time) {
@@ -197,6 +191,7 @@ export default {
         }
         this.form.address = lastPos.addr || res.address || '-'
         if (res.iccid) this.form.iccid = res.iccid
+        this.applyIconByKey(res.icon || res.iconKey)
         try {
           const sim = await getSimDetail({ sn: this.deviceSn })
           if (sim?.iccid) this.form.iccid = sim.iccid
@@ -252,12 +247,12 @@ export default {
       this.closeIconPicker()
     },
     async onSave() {
-      if (!this.form.deviceName.trim()) {
+      if (!this.form.deviceName) {
         uni.$u.toast('请输入设备名称')
         return
       }
       const payload = {
-        deviceName: this.form.deviceName.trim(),
+        deviceName: this.form.deviceName,
         contact: this.form.contact.trim(),
         contactPhone: this.form.contactPhone.trim(),
         lbsOn: this.form.lbsOn,
@@ -266,19 +261,17 @@ export default {
         iconLabel: this.form.iconLabel,
       }
       try {
-        await setDeviceConfig({
+        await setDeviceDetail({
           sn: this.deviceSn || this.form.deviceNo,
-          params: {
-            alias: payload.deviceName,
-            contact: payload.contact,
-            contactPhone: payload.contactPhone,
-            lbsOn: payload.lbsOn ? 1 : 0,
-            iconKey: payload.iconKey,
-          },
+          alias: payload.deviceName,
+          contactName: payload.contact,
+          contactPhone: payload.contactPhone,
+          lbsOn: payload.lbsOn,
+          icon: payload.iconKey,
         })
         uni.setStorageSync(this.storageKey(), payload)
         uni.$u.toast('保存成功')
-        setTimeout(() => uni.navigateBack(), 400)
+        // setTimeout(() => uni.navigateBack(), 400)
       } catch (e) {
         uni.$u.toast(e?.message || '保存失败')
       }

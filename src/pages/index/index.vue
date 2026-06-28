@@ -107,6 +107,7 @@ import {
   formatDistance,
 } from '@/common/amap'
 import { getDeviceList, normalizeDeviceList, getDeviceDetail, createShareLink } from '@/api/device'
+import { resolveDeviceIconSrc, resolveDeviceIconKey } from '@/common/device-icons'
 import {
   normalizeShareLinkResult,
   buildSharePayload,
@@ -117,13 +118,17 @@ import {
   copyShareLink,
 } from '@/common/wx-share'
 
-import carIcon from '@/static/car.png'
 const REFRESH_INTERVAL = 20
 const STORAGE_KEY = 'currentDevice'
 
 
 export default {
   components: { AmapView },
+  computed: {
+    deviceMarkerIcon() {
+      return resolveDeviceIconSrc(resolveDeviceIconKey(this.device))
+    },
+  },
   data() {
     return {
       refreshCount: REFRESH_INTERVAL,
@@ -135,7 +140,6 @@ export default {
         latitude: DEFAULT_MAP_CENTER.latitude,
         longitude: DEFAULT_MAP_CENTER.longitude,
       },
-      deviceMarkerIcon: carIcon,
       myLocation: null,
       hasBoundDevice: true,
       deviceCheckDone: false,
@@ -220,11 +224,6 @@ export default {
       this.device.distance = formatDistance(meters)
     },
     async updateDistanceFromMe() {
-      const [error, location] = await uni.getLocation({
-        type: 'gcj02',
-        geocode: true,
-      });
-      console.log('location',location,error)
       try {
         const pos = await getCurrentLocation()
         this.myLocation = pos
@@ -262,7 +261,6 @@ export default {
         }
         this.loadCurrentDevice()
       } catch (e) {
-        console.error('[index] checkDeviceBound failed:', e)
         this.deviceCheckDone = true
       }
     },
@@ -284,7 +282,6 @@ export default {
       if (!saved || !saved.sn) return
       const res = await getDeviceDetail({ sn: saved.sn })
       this.device = res
-      console.log('res', this.myLocation)
       if (this.myLocation?.longitude && this.myLocation?.latitude) {
         this.applyDeviceDistance(this.myLocation)
       } else if (!this.device.distance) {
@@ -353,7 +350,7 @@ export default {
           expireAt,
           deviceName: this.device.name || this.device.imei || sn,
           address: this.device.address,
-          imageUrl: carIcon,
+          imageUrl: this.deviceMarkerIcon,
         })
         // #ifdef MP-WEIXIN
         prepareMpShareMenu()

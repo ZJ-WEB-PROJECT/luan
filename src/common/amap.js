@@ -1,43 +1,31 @@
-import { AMAP_KEY, AMAP_SECURITY_CODE } from './amap-config'
-console.log(AMAP_KEY, AMAP_SECURITY_CODE)
+import { AMAP_KEY, AMAP_SECURITY_CODE, AMAP_WEB_SERVICE_KEY } from './amap-config'
+
 let loadPromise = null
+const reverseGeoCache = new Map()
+
+function canUseJsApi() {
+  return typeof window !== 'undefined' && !!AMAP_KEY && !!AMAP_SECURITY_CODE
+}
 
 /** 须在加载地图脚本之前设置（高德 2.0 强制要求） */
 export function ensureAmapSecurityConfig() {
-  // #ifdef H5
   if (typeof window === 'undefined') return
   if (!AMAP_SECURITY_CODE) return
   window._AMapSecurityConfig = {
     securityJsCode: AMAP_SECURITY_CODE,
   }
-  // #endif
 }
 
 /**
- * 加载高德 JS API 2.0（仅 H5，使用官方 Loader）
+ * 加载高德 JS API 2.0（H5 / App WebView）
  * @see https://lbs.amap.com/api/javascript-api-v2/guide/abc/load
  */
 export function loadAmap() {
-  // #ifndef H5
-  // return Promise.reject(new Error('AMap JS API only available on H5'))
-  // #endif
-
-  // #ifdef H5
-  if (typeof window === 'undefined') {
-    return Promise.reject(new Error('window unavailable'))
+  if (!canUseJsApi()) {
+    return Promise.reject(new Error('当前环境无法使用高德 JS API'))
   }
   if (window.AMap) {
     return Promise.resolve(window.AMap)
-  }
-  if (!AMAP_KEY) {
-    return Promise.reject(
-      new Error('请配置 .env.production 中的 VITE_AMAP_KEY，并重启 dev 服务')
-    )
-  }
-  if (!AMAP_SECURITY_CODE) {
-    return Promise.reject(
-      new Error('请配置 .env.production 中的 VITE_AMAP_SECURITY_CODE（高德 2.0 必填）')
-    )
   }
 
   ensureAmapSecurityConfig()
@@ -48,7 +36,7 @@ export function loadAmap() {
         AMapLoader.load({
           key: AMAP_KEY,
           version: '2.0',
-          plugins: [],
+          plugins: ['AMap.Geocoder'],
         })
       )
       .then((AMap) => {
@@ -72,12 +60,11 @@ export function loadAmap() {
         throw new Error(
           msg.includes('fetch') || msg.includes('加载')
             ? msg
-            : `高德地图加载失败：${msg}。请确认 Referer 白名单已添加 http://127.0.0.1:5174`
+            : `高德地图加载失败：${msg}。请确认 Referer 白名单已添加当前域名`
         )
       })
   }
   return loadPromise
-  // #endif
 }
 
 /** 打开高德导航（H5 跳转 URI，App/小程序走 openLocation） */
@@ -111,7 +98,6 @@ export function getCurrentLocation() {
       type: 'gcj02',
       isHighAccuracy: true,
       success: (res) => {
-        console.log('res',res)
         resolve({ longitude: res.longitude, latitude: res.latitude })
       },
       fail: (err) => reject(err),
@@ -135,4 +121,93 @@ export function formatDistance(meters) {
   if (meters == null || Number.isNaN(meters)) return '--'
   if (meters < 1000) return `${Math.round(meters)}m`
   return `${(meters / 1000).toFixed(3)}km`
+}
+
+function parseRegeoRestResponse(res) {
+  const body = res?.data
+  if (!body || body.status !== '1') {
+    const info = body?.info || ''
+    if (info === 'USERKEY_PLAT_NOMATCH') {
+      console.warn(
+        '[amap] REST 逆地理编码 Key 平台不匹配：请在控制台申请「Web服务」类型 Key，'
+        + '配置 VITE_AMAP_WEB_SERVICE_KEY（不可使用 JS API Key 调用 restapi.amap.com）',
+      )
+    } else if (info) {
+      console.warn('[amap] REST 逆地理编码失败:', info, body?.infocode || '')
+    }
+    return ''
+  }
+  return body.regeocode?.formatted_address || ''
+}
+
+/** REST 逆地理（App 等无 WebView 场景兜底，须 Web服务 Key） */
+function reverseGeocodeByRest(lat, lng) {
+  const key = AMAP_WEB_SERVICE_KEY
+  if (!key) {
+    return Promise.resolve('')
+  }
+  return new Promise((resolve) => {
+    uni.request({
+      url: 'https://restapi.amap.com/v3/geocode/regeo',
+      method: 'GET',
+      data: {
+        key,
+        location: `${lng},${lat}`,
+        extensions: 'base',
+      },
+      success: (res) => {
+        resolve(parseRegeoRestResponse(res))
+      },
+      fail: (err) => {
+        console.warn('[amap] reverseGeocode REST failed:', err)
+        resolve('')
+      },
+    })
+  })
+}
+
+async function reverseGeocodeByJsApi(lat, lng) {
+  if (!canUseJsApi()) return ''
+  try {
+    const AMap = await loadAmap()
+    return await new Promise((resolve) => {
+      const geocoder = new AMap.Geocoder()
+      geocoder.getAddress([lng, lat], (status, result) => {
+        if (status === 'complete' && result?.regeocode?.formattedAddress) {
+          resolve(result.regeocode.formattedAddress)
+        } else {
+          const info = result?.info || status
+          if (info && info !== 'no_data') {
+            console.warn('[amap] JS API 逆地理编码失败:', info)
+          }
+          resolve('')
+        }
+      })
+    })
+  } catch (e) {
+    console.warn('[amap] reverseGeocode JS API failed:', e)
+    return ''
+  }
+}
+
+/** 坐标 → 地址（GCJ-02，高德逆地理编码） */
+export async function reverseGeocodeAddress(latitude, longitude) {
+  const lat = Number(latitude)
+  const lng = Number(longitude)
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return ''
+
+  const cacheKey = `${lat.toFixed(5)},${lng.toFixed(5)}`
+  if (reverseGeoCache.has(cacheKey)) {
+    return reverseGeoCache.get(cacheKey)
+  }
+
+  // 优先 JS API（与 VITE_AMAP_KEY 类型一致；H5 / App WebView 可用）
+  let address = await reverseGeocodeByJsApi(lat, lng)
+  // App 原生等场景兜底：须单独配置 Web服务 Key
+  if (!address) {
+    address = await reverseGeocodeByRest(lat, lng)
+  }
+
+  if (address) reverseGeoCache.set(cacheKey, address)
+  return address
 }

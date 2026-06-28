@@ -1,5 +1,7 @@
 import dayjs from 'dayjs'
-import { resolveDeviceEndpoint } from '@/common/device-api-mode'
+import { resolveDeviceEndpoint, isJt808DeviceApiMode } from '@/common/device-api-mode'
+import { reverseGeocodeAddress } from '@/common/amap'
+import { DEVICE_ICON_OPTIONS } from '@/common/device-icons'
 
 const CURRENT_DEVICE_KEY = 'currentDevice'
 const PAGE_CURSOR_PREFIX = '__page:'
@@ -219,70 +221,254 @@ export function wrapCursorPageResponse(items, { page, isLast }) {
 
 
 
-/** iotdoc 详情 / JT808 LaDeviceItemDto → 页面通用结构 */
-export function normalizeDeviceDetail(res) {
-  if (!res || typeof res !== 'object') return res
+/** App iconKey → iotdoc SetDetail.params.car_image（number，按 DEVICE_ICON_OPTIONS 顺序） */
+export function mapIconKeyToIotdocCarImage(iconKey) {
+  const key = String(iconKey ?? '').trim()
+  if (!key) return 0
+  const num = Number(key)
+  if (Number.isFinite(num) && String(num) === key) return num
+  const idx = DEVICE_ICON_OPTIONS.findIndex((item) => item.key === key)
+  return idx >= 0 ? idx : 0
+}
 
-  if (res.last_pos != null || res.state != null) {
-    let lastPos = res.last_pos
-    if (typeof lastPos === 'string') {
-      try {
-        lastPos = JSON.parse(lastPos)
-      } catch {
-        lastPos = null
-      }
-    }
-    const lastComRaw = res.last_com_time ?? res.lastSeenTime
-    const lastComTime = typeof lastComRaw === 'number'
-      ? (lastComRaw > 1e12 ? Math.floor(lastComRaw / 1000) : lastComRaw)
-      : dateTimeToUnix(lastComRaw)
-    const wgs = typeof lastPos?.wgs === 'string' ? String(lastPos.wgs) : ''
-    const [latStr, lngStr] = wgs.split(',')
-    const latitude = Number(latStr)
-    const longitude = Number(lngStr)
-    const status = res.state === 'e_line_sleep'
-      ? '静止'
-      : res.state === 'e_line_down'
-        ? '离线'
-        : '在线'
-    return {
-      ...res,
-      last_pos: lastPos,
-      last_com_time: lastComTime || res.last_com_time,
-      latitude: Number.isFinite(latitude) ? latitude : res.latitude,
-      longitude: Number.isFinite(longitude) ? longitude : res.longitude,
-      address: (lastPos && lastPos.addr) || res.address || '',
-      status,
-      statusType: status === '在线' || status === '静止' ? 'static' : 'offline',
-    }
+/** iotdoc car_image → App iconKey */
+export function mapIotdocCarImageToIconKey(carImage) {
+  const idx = Number(carImage)
+  if (!Number.isFinite(idx)) return 'default'
+  return DEVICE_ICON_OPTIONS[idx]?.key || 'default'
+}
+
+function hasNativeIotdocDetailFields(params) {
+  if (!params || typeof params !== 'object') return false
+  return [
+    'car_image', 'car_number', 'user_name', 'user_phone', 'user_image',
+    'car_type', 'user_addr', 'user_cer', 'user_mail',
+  ].some((key) => params[key] !== undefined)
+}
+
+/**
+ * 页面字段 → iotdoc 三方 SetDetail.params
+ * @see device.SetDetail（func/module 由后端代理注入，前端只传 params）
+ */
+export function buildIotdocSetDetailParams(data = {}) {
+  if (hasNativeIotdocDetailFields(data.params)) {
+    const { simei, ...rest } = data.params
+    return rest
   }
 
-  const lat = res.lastLat ?? res.latitude
-  const lng = res.lastLng ?? res.longitude
-  const online = res.onlineStatus === 1
+  const src = data.detail ?? data
+  const params = {}
+
+  const carNumber = src.car_number ?? src.alias ?? src.deviceName
+  if (carNumber != null && String(carNumber).trim()) {
+    params.car_number = String(carNumber).trim()
+  }
+
+  const userName = src.user_name ?? src.contactName ?? src.contact
+  if (userName != null && String(userName).trim()) {
+    params.user_name = String(userName).trim()
+  }
+
+  const userPhone = src.user_phone ?? src.contactPhone
+  if (userPhone != null && String(userPhone).trim()) {
+    params.user_phone = String(userPhone).trim()
+  }
+
+  const iconRaw = src.car_image ?? src.icon ?? src.iconKey
+  if (iconRaw != null && iconRaw !== '') {
+    params.car_image = mapIconKeyToIotdocCarImage(iconRaw)
+  }
+
+  return params
+}
+
+/** 解包详情响应（兼容 data / detail 嵌套） */
+function unwrapDeviceDetailResponse(res) {
+  if (!res || typeof res !== 'object') return res
+  let raw = { ...res }
+  if (raw.data && typeof raw.data === 'object' && !Array.isArray(raw.data)) {
+    raw = { ...raw, ...raw.data }
+  }
+  if (raw.detail && typeof raw.detail === 'object') {
+    raw = { ...raw, ...raw.detail }
+  }
+  return raw
+}
+
+function parseLastPos(lastPosRaw) {
+  let lastPos = lastPosRaw
+  if (typeof lastPos === 'string') {
+    try {
+      lastPos = JSON.parse(lastPos)
+    } catch {
+      lastPos = null
+    }
+  }
+  return lastPos && typeof lastPos === 'object' ? lastPos : null
+}
+
+function parseLastComTime(raw) {
+  const lastComRaw = raw.last_com_time ?? raw.lastSeenTime ?? raw.updateTime
+  if (lastComRaw == null || lastComRaw === '') return 0
+  if (typeof lastComRaw === 'number') {
+    return lastComRaw > 1e12 ? Math.floor(lastComRaw / 1000) : lastComRaw
+  }
+  return dateTimeToUnix(lastComRaw)
+}
+
+function mapIotdocStatus(state) {
+  if (state === 'e_line_sleep') return { status: '静止', statusType: 'static', state }
+  if (state === 'e_line_down') return { status: '离线', statusType: 'offline', state }
+  if (state === 'e_line_on') return { status: '在线', statusType: 'static', state }
+  return { status: '在线', statusType: 'static', state: state || 'e_line_on' }
+}
+
+/**
+ * iotdoc GetDetail → 页面统一结构
+ * 三方字段见 device.SetDetail / GetDetail（car_image、user_name 等）
+ */
+export function normalizeIotdocDeviceDetail(res) {
+  const raw = unwrapDeviceDetailResponse(res)
+  const lastPos = parseLastPos(raw.last_pos ?? raw.lastPos)
+  const lastComTime = parseLastComTime(raw)
+  const wgs = typeof lastPos?.wgs === 'string' ? String(lastPos.wgs) : ''
+  const [latStr, lngStr] = wgs.split(',')
+  const latitude = Number.isFinite(Number(latStr)) ? Number(latStr) : raw.latitude
+  const longitude = Number.isFinite(Number(lngStr)) ? Number(lngStr) : raw.longitude
+  const statusInfo = mapIotdocStatus(raw.state)
+
+  const iconKey = raw.icon ?? raw.iconKey
+    ?? (raw.car_image != null && raw.car_image !== ''
+      ? mapIotdocCarImageToIconKey(raw.car_image)
+      : 'default')
+  const userImageKey = raw.user_image != null && raw.user_image !== ''
+    ? mapIotdocCarImageToIconKey(raw.user_image)
+    : ''
+
+  const sn = String(raw.sn ?? raw.simei ?? raw.imei ?? '').trim()
+  const alias = raw.alias ?? raw.car_number ?? ''
+  const contactName = raw.contactName ?? raw.user_name ?? ''
+  const contactPhone = raw.contactPhone ?? raw.bck_phone ?? ''
+
+  return {
+    ...raw,
+    sn,
+    imei: sn || raw.imei || raw.simei || '',
+    simei: raw.simei ?? sn,
+    alias,
+    deviceName: alias,
+    name: raw.name ?? (alias || sn),
+    contactName,
+    contact: contactName,
+    contactPhone,
+    icon: iconKey,
+    iconKey,
+    userImageKey,
+    carNumber: raw.car_number ?? '',
+    carType: raw.car_type ?? '',
+    carImage: raw.car_image ?? null,
+    engineNum: raw.engine_num ?? '',
+    frameNum: raw.frame_num ?? '',
+    centerPhone: raw.center_phone ?? '',
+    insuranceDate: raw.scar_safe_time ?? '',
+    annualCheckDate: raw.scar_year_check ?? '',
+    userName: raw.user_name ?? '',
+    userPhone: raw.user_phone ?? '',
+    userAddr: raw.user_addr ?? '',
+    userCer: raw.user_cer ?? '',
+    userMail: raw.user_mail ?? '',
+    userSex: raw.user_sex ?? '',
+    userImage: raw.user_image ?? null,
+    imgPos: raw.img_pos ?? '',
+    imgOther: raw.img_other ?? '',
+    model: raw.model ?? raw.car_type ?? raw.ver ?? '',
+    ver: raw.ver ?? raw.car_type ?? '',
+    last_pos: lastPos,
+    last_com_time: lastComTime || raw.last_com_time,
+    latitude: Number.isFinite(latitude) ? latitude : undefined,
+    longitude: Number.isFinite(longitude) ? longitude : undefined,
+    address: (lastPos && lastPos.addr) || raw.address || raw.user_addr || '',
+    power: raw.power ?? raw.battery ?? 0,
+    ...statusInfo,
+  }
+}
+
+/** JT808 LaDeviceItemDto → 页面统一结构 */
+export function normalizeJt808DeviceDetail(res) {
+  const raw = unwrapDeviceDetailResponse(res)
+  const lat = raw.lastLat ?? raw.latitude
+  const lng = raw.lastLng ?? raw.longitude
+  const online = raw.onlineStatus === 1
   const lastPos = {
     wgs: lat != null && lng != null ? `${lat},${lng}` : '',
-    addr: res.address || '',
+    addr: raw.address || '',
   }
-  const lastComRaw = res.last_com_time ?? res.lastSeenTime ?? res.updateTime
-  const lastComTime = typeof lastComRaw === 'number'
-    ? (lastComRaw > 1e12 ? Math.floor(lastComRaw / 1000) : lastComRaw)
-    : dateTimeToUnix(lastComRaw)
+  const lastComTime = parseLastComTime(raw)
   const status = online ? '在线' : '离线'
+  const sn = String(raw.sn ?? raw.imei ?? '').trim()
+
   return {
-    ...res,
-    deviceId: res.deviceId ?? res.id,
-    imei: res.sn ?? res.imei,
+    ...raw,
+    sn,
+    deviceId: raw.deviceId ?? raw.id,
+    imei: sn || raw.imei,
+    alias: raw.alias ?? '',
+    deviceName: raw.alias ?? raw.name ?? sn,
+    name: raw.name ?? raw.alias ?? sn,
+    contactName: raw.contactName ?? '',
+    contact: raw.contactName ?? '',
+    contactPhone: raw.contactPhone ?? '',
+    icon: raw.icon ?? raw.iconKey ?? '',
+    iconKey: raw.iconKey ?? raw.icon ?? '',
+    lbsSwitch: raw.lbsSwitch,
+    lbsOn: raw.lbsSwitch === 1 || raw.lbsSwitch === true,
     state: online ? 'e_line_on' : 'e_line_down',
     status,
     statusType: online ? 'static' : 'offline',
-    power: res.batteryPercent ?? res.power ?? 0,
+    power: raw.batteryPercent ?? raw.power ?? 0,
     latitude: lat,
     longitude: lng,
-    address: res.address || '',
+    address: raw.address || lastPos.addr || '',
     last_com_time: lastComTime,
     last_pos: lastPos,
+    model: raw.model ?? raw.jtDeviceModel ?? raw.ver ?? '',
   }
+}
+
+/** 设备详情统一格式化（iotdoc / JT808） */
+export function normalizeDeviceDetail(res) {
+  if (!res || typeof res !== 'object') return res
+  if (isJt808DeviceApiMode()) {
+    return normalizeJt808DeviceDetail(res)
+  }
+  return normalizeIotdocDeviceDetail(res)
+}
+
+
+/** LaAlarmItemDto → iotdoc 告警列表字段（message 页兼容） */
+export async function enrichDeviceDetailAddress(detail) {
+  if (!detail || typeof detail !== 'object' || !isJt808DeviceApiMode()) {
+    return detail
+  }
+
+  const existing = String(detail.address || detail.last_pos?.addr || '').trim()
+  if (existing) return detail
+
+  const lat = detail.latitude ?? detail.lastLat
+  const lng = detail.longitude ?? detail.lastLng
+  if (!Number.isFinite(Number(lat)) || !Number.isFinite(Number(lng))) {
+    return detail
+  }
+
+  const address = await reverseGeocodeAddress(lat, lng)
+  if (!address) return detail
+
+  const lastPos = {
+    ...(detail.last_pos || {}),
+    wgs: detail.last_pos?.wgs || `${lat},${lng}`,
+    addr: address,
+  }
+  return { ...detail, address, last_pos: lastPos }
 }
 
 
