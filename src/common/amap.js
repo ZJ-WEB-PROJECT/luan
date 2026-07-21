@@ -1,26 +1,32 @@
 import { AMAP_KEY, AMAP_SECURITY_CODE, AMAP_WEB_SERVICE_KEY } from './amap-config'
 
-let loadPromise = null
 const reverseGeoCache = new Map()
+
+// #ifdef H5
+let loadPromise = null
 
 function canUseJsApi() {
   return typeof window !== 'undefined' && !!AMAP_KEY && !!AMAP_SECURITY_CODE
 }
+// #endif
 
-/** 须在加载地图脚本之前设置（高德 2.0 强制要求） */
+/** 须在加载地图脚本之前设置（高德 2.0 强制要求，仅 H5） */
 export function ensureAmapSecurityConfig() {
+  // #ifdef H5
   if (typeof window === 'undefined') return
   if (!AMAP_SECURITY_CODE) return
   window._AMapSecurityConfig = {
     securityJsCode: AMAP_SECURITY_CODE,
   }
+  // #endif
 }
 
 /**
- * 加载高德 JS API 2.0（H5 / App WebView）
+ * 加载高德 JS API 2.0（仅 H5 / App WebView）
  * @see https://lbs.amap.com/api/javascript-api-v2/guide/abc/load
  */
 export function loadAmap() {
+  // #ifdef H5
   if (!canUseJsApi()) {
     return Promise.reject(new Error('当前环境无法使用高德 JS API'))
   }
@@ -65,6 +71,11 @@ export function loadAmap() {
       })
   }
   return loadPromise
+  // #endif
+
+  // #ifndef H5
+  return Promise.reject(new Error('当前环境无法使用高德 JS API'))
+  // #endif
 }
 
 /** 打开高德导航（H5 跳转 URI，App/小程序走 openLocation） */
@@ -140,7 +151,7 @@ function parseRegeoRestResponse(res) {
   return body.regeocode?.formatted_address || ''
 }
 
-/** REST 逆地理（App 等无 WebView 场景兜底，须 Web服务 Key） */
+/** REST 逆地理（小程序 / App 等场景，须 Web服务 Key） */
 function reverseGeocodeByRest(lat, lng) {
   const key = AMAP_WEB_SERVICE_KEY
   if (!key) {
@@ -166,6 +177,7 @@ function reverseGeocodeByRest(lat, lng) {
   })
 }
 
+// #ifdef H5
 async function reverseGeocodeByJsApi(lat, lng) {
   if (!canUseJsApi()) return ''
   try {
@@ -189,6 +201,7 @@ async function reverseGeocodeByJsApi(lat, lng) {
     return ''
   }
 }
+// #endif
 
 /** 坐标 → 地址（GCJ-02，高德逆地理编码） */
 export async function reverseGeocodeAddress(latitude, longitude) {
@@ -201,9 +214,10 @@ export async function reverseGeocodeAddress(latitude, longitude) {
     return reverseGeoCache.get(cacheKey)
   }
 
-  // 优先 JS API（与 VITE_AMAP_KEY 类型一致；H5 / App WebView 可用）
-  let address = await reverseGeocodeByJsApi(lat, lng)
-  // App 原生等场景兜底：须单独配置 Web服务 Key
+  let address = ''
+  // #ifdef H5
+  address = await reverseGeocodeByJsApi(lat, lng)
+  // #endif
   if (!address) {
     address = await reverseGeocodeByRest(lat, lng)
   }
